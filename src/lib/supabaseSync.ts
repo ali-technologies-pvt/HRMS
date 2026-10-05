@@ -134,7 +134,7 @@ export async function fetchUserByEmail(email: string): Promise<User | null> {
     const { data, error } = await client
       .from(table)
       .select('*')
-      .eq('email', normalized)
+      .ilike('email', normalized)
       .limit(1);
 
     if (!error && data && data.length > 0) {
