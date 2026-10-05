@@ -5,7 +5,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppData } from '@/context/AppDataContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useTheme } from '@/context/ThemeContext';
-import { RoleSwitcher } from '../common/RoleSwitcher';
 import { ProfileEditModal } from '../common/ProfileEditModal';
 import { ExitClearanceModal } from '../common/ExitClearanceModal';
 import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare } from 'lucide-react';
@@ -236,9 +235,6 @@ export function Topbar({ onOpenChat }: TopbarProps) {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Quick Role Switcher widget */}
-            <RoleSwitcher />
 
             {/* Current User Profile Pill with Status */}
             <div className="relative">
