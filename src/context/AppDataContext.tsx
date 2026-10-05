@@ -75,6 +75,27 @@ interface AppDataContextType {
   clockOut: (userId: string) => void;
   getUserTodayAttendance: (userId: string) => AttendanceRecord | undefined;
   updateAttendanceRecord: (id: string, updates: Partial<AttendanceRecord>) => void;
+  manualRecordAttendance: (record: {
+    userId: string;
+    userName?: string;
+    department?: string;
+    date: string; // YYYY-MM-DD
+    clockIn: string; // HH:mm
+    clockOut?: string; // HH:mm
+    status?: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    managerRemarks?: string;
+  }) => void;
+  bulkBackfillAttendance: (records: {
+    userId: string;
+    userName: string;
+    department: string;
+    date: string;
+    clockIn: string;
+    clockOut: string;
+    status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    managerRemarks?: string;
+  }[]) => void;
+  deleteAttendanceRecord: (id: string) => void;
 
   // Announcements operations
   addAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt'>) => void;
@@ -110,8 +131,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setRequests(loadFromStorage<RequestItem[]>(STORAGE_KEYS.REQUESTS, initialRequests));
     setAttendance(loadFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, initialAttendance));
     setAnnouncements(loadFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, initialAnnouncements));
-    setPayslips(loadFromStorage<Payslip[]>(STORAGE_KEYS.PAYSLIPS, initialPayslips));
-    setPolicy(loadFromStorage<CompanyPolicy>(STORAGE_KEYS.POLICY, initialCompanyPolicy));
+    const loadedPolicy = loadFromStorage<CompanyPolicy>(STORAGE_KEYS.POLICY, initialCompanyPolicy);
+    if (loadedPolicy && (loadedPolicy.officeStartTime === '09:00' || !loadedPolicy.officeStartTime)) {
+      loadedPolicy.officeStartTime = '09:30';
+      loadedPolicy.officeEndTime = '18:00';
+      loadedPolicy.gracePeriodMinutes = 15;
+      saveToStorage(STORAGE_KEYS.POLICY, loadedPolicy);
+    }
+    setPolicy(loadedPolicy);
   }, []);
 
   // Save changes helper
@@ -359,15 +386,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const clockIn = useCallback((userId: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    // Compare with officeStartTime e.g. 09:00 and gracePeriodMinutes e.g. 15
-    const [startH, startM] = policy.officeStartTime.split(':').map(Number);
-    const startTotalMins = startH * 60 + startM;
+    // Compare with officeStartTime e.g. 09:30 and gracePeriodMinutes e.g. 15
+    const [startH, startM] = (policy.officeStartTime || '09:30').split(':').map(Number);
+    const startTotalMins = startH * 60 + startM; // 09:30 => 570 mins
     const currentTotalMins = now.getHours() * 60 + now.getMinutes();
-    const graceLimit = startTotalMins + policy.gracePeriodMinutes;
+    const graceLimit = startTotalMins + (policy.gracePeriodMinutes ?? 15); // 585 mins => 09:45 AM
 
     const isLate = currentTotalMins > graceLimit;
+    const minsLate = isLate ? currentTotalMins - startTotalMins : 0;
 
     const userObj = users.find(u => u.id === userId) || currentUser;
 
@@ -381,12 +409,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       id: 'att-' + Date.now().toString(36),
       userId,
       userName: userObj.name,
-      department: userObj.department,
+      department: userObj.department || 'Operations',
       date: todayStr,
       clockIn: timeStr,
       totalWorkMinutes: 0,
       status: isLate ? 'late' : 'present',
       isLate,
+      lateReason: isLate ? `Late by ${minsLate} mins (Grace limit: 09:45 AM)` : undefined,
       overtimeHours: 0
     };
 
@@ -395,7 +424,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     updateCurrentUserProfile({ status: 'online' });
 
     if (isLate) {
-      showNotification('Clock-In Logged (Late)', `Punched in at ${timeStr}. Office grace period (${policy.gracePeriodMinutes}m) exceeded.`, 'warning');
+      showNotification('Clock-In Logged (Late)', `Punched in at ${timeStr}. Grace period (${policy.gracePeriodMinutes || 15}m) exceeded.`, 'warning');
     } else {
       showNotification('Punched In (On-Time)', `Good morning! Clocked in at ${timeStr}. Have a productive day!`, 'success');
     }
@@ -404,7 +433,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const clockOut = useCallback((userId: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const existing = attendance.find(a => a.userId === userId && a.date === todayStr);
     if (!existing) {
@@ -419,8 +448,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const workedMins = Math.max(0, outTotalMins - inTotalMins);
 
     // Overtime past officeEndTime e.g. 18:00
-    const [endH, endM] = policy.officeEndTime.split(':').map(Number);
-    const endTotalMins = endH * 60 + endM;
+    const [endH, endM] = (policy.officeEndTime || '18:00').split(':').map(Number);
+    const endTotalMins = endH * 60 + endM; // 18:00 => 1080 mins
     let overtimeHours = 0;
     if (outTotalMins > endTotalMins) {
       overtimeHours = Number(((outTotalMins - endTotalMins) / 60).toFixed(1));
@@ -447,6 +476,146 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const updated = attendance.map(a => a.id === id ? { ...a, ...updates } : a);
     syncData(STORAGE_KEYS.ATTENDANCE, updated, setAttendance);
     showNotification('Attendance Updated', 'Attendance record modified successfully.', 'success');
+  }, [attendance, showNotification]);
+
+  const manualRecordAttendance = useCallback((record: {
+    userId: string;
+    userName?: string;
+    department?: string;
+    date: string; // YYYY-MM-DD
+    clockIn: string; // HH:mm
+    clockOut?: string; // HH:mm
+    status?: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    managerRemarks?: string;
+  }) => {
+    const userObj = users.find(u => u.id === record.userId) || currentUser;
+    const userName = record.userName || userObj.name;
+    const department = record.department || userObj.department || 'Operations';
+
+    // Parse clockIn
+    const [inH, inM] = record.clockIn.split(':').map(Number);
+    const inTotalMins = inH * 60 + inM;
+
+    // Shift rule: 09:30 + 15 min = 585 mins
+    const [startH, startM] = (policy.officeStartTime || '09:30').split(':').map(Number);
+    const startTotalMins = startH * 60 + startM;
+    const graceLimit = startTotalMins + (policy.gracePeriodMinutes ?? 15);
+    const isLate = inTotalMins > graceLimit;
+
+    let workedMins = 0;
+    let overtimeHours = 0;
+
+    if (record.clockOut) {
+      const [outH, outM] = record.clockOut.split(':').map(Number);
+      const outTotalMins = outH * 60 + outM;
+      workedMins = Math.max(0, outTotalMins - inTotalMins);
+
+      const [endH, endM] = (policy.officeEndTime || '18:00').split(':').map(Number);
+      const endTotalMins = endH * 60 + endM;
+      if (outTotalMins > endTotalMins) {
+        overtimeHours = Number(((outTotalMins - endTotalMins) / 60).toFixed(1));
+      }
+    }
+
+    const calculatedStatus = record.status || (isLate ? 'late' : 'present');
+
+    const existingIndex = attendance.findIndex(a => a.userId === record.userId && a.date === record.date);
+
+    let updated: AttendanceRecord[];
+    if (existingIndex >= 0) {
+      updated = [...attendance];
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        clockIn: record.clockIn,
+        clockOut: record.clockOut,
+        totalWorkMinutes: workedMins,
+        status: calculatedStatus,
+        isLate,
+        overtimeHours,
+        managerRemarks: record.managerRemarks || updated[existingIndex].managerRemarks || 'Adjusted by manager',
+        editedBy: currentUser.name
+      };
+    } else {
+      const newRec: AttendanceRecord = {
+        id: 'att-man-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6),
+        userId: record.userId,
+        userName,
+        department,
+        date: record.date,
+        clockIn: record.clockIn,
+        clockOut: record.clockOut,
+        totalWorkMinutes: workedMins,
+        status: calculatedStatus,
+        isLate,
+        overtimeHours,
+        managerRemarks: record.managerRemarks || 'Manually entered by manager',
+        editedBy: currentUser.name
+      };
+      updated = [newRec, ...attendance];
+    }
+
+    syncData(STORAGE_KEYS.ATTENDANCE, updated, setAttendance);
+    showNotification('Attendance Saved', `Attendance for ${userName} on ${record.date} recorded successfully.`, 'success');
+  }, [attendance, users, currentUser, policy, showNotification]);
+
+  const bulkBackfillAttendance = useCallback((records: {
+    userId: string;
+    userName: string;
+    department: string;
+    date: string;
+    clockIn: string;
+    clockOut: string;
+    status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    managerRemarks?: string;
+  }[]) => {
+    let currentList = [...attendance];
+
+    records.forEach(rec => {
+      const [inH, inM] = rec.clockIn.split(':').map(Number);
+      const inTotalMins = inH * 60 + inM;
+      const [outH, outM] = rec.clockOut.split(':').map(Number);
+      const outTotalMins = outH * 60 + outM;
+      const workedMins = Math.max(0, outTotalMins - inTotalMins);
+
+      const [startH, startM] = (policy.officeStartTime || '09:30').split(':').map(Number);
+      const isLate = inTotalMins > (startH * 60 + startM + (policy.gracePeriodMinutes ?? 15));
+
+      const [endH, endM] = (policy.officeEndTime || '18:00').split(':').map(Number);
+      const endTotalMins = endH * 60 + endM;
+      const overtimeHours = outTotalMins > endTotalMins ? Number(((outTotalMins - endTotalMins) / 60).toFixed(1)) : 0;
+
+      const idx = currentList.findIndex(a => a.userId === rec.userId && a.date === rec.date);
+      const entry: AttendanceRecord = {
+        id: idx >= 0 ? currentList[idx].id : 'att-bf-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6),
+        userId: rec.userId,
+        userName: rec.userName,
+        department: rec.department,
+        date: rec.date,
+        clockIn: rec.clockIn,
+        clockOut: rec.clockOut,
+        totalWorkMinutes: workedMins,
+        status: rec.status,
+        isLate,
+        overtimeHours,
+        managerRemarks: rec.managerRemarks || '5-Day Shift Backfill (09:30 - 18:00)',
+        editedBy: currentUser.name
+      };
+
+      if (idx >= 0) {
+        currentList[idx] = entry;
+      } else {
+        currentList.push(entry);
+      }
+    });
+
+    syncData(STORAGE_KEYS.ATTENDANCE, currentList, setAttendance);
+    showNotification('Backfill Successful', `${records.length} attendance records logged and synchronized.`, 'success');
+  }, [attendance, policy, currentUser, showNotification]);
+
+  const deleteAttendanceRecord = useCallback((id: string) => {
+    const updated = attendance.filter(a => a.id !== id);
+    syncData(STORAGE_KEYS.ATTENDANCE, updated, setAttendance);
+    showNotification('Record Deleted', 'Attendance record removed.', 'info');
   }, [attendance, showNotification]);
 
   // Announcements
@@ -548,6 +717,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         clockOut,
         getUserTodayAttendance,
         updateAttendanceRecord,
+        manualRecordAttendance,
+        bulkBackfillAttendance,
+        deleteAttendanceRecord,
         addAnnouncement,
         generateMonthlyPayroll,
         getPayslipsForUser,

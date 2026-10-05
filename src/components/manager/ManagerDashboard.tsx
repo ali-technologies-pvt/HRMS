@@ -34,7 +34,9 @@ import {
   Calendar,
   UserPlus,
   Copy,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AttendanceRecord, Project, RequestItem } from '@/types';
@@ -196,19 +198,45 @@ export function ManagerDashboard() {
     withdrawProject,
     reactivateProject,
     reviewRequest,
-    updateAttendanceRecord
+    updateAttendanceRecord,
+    manualRecordAttendance,
+    bulkBackfillAttendance,
+    deleteAttendanceRecord
   } = useAppData();
   const { showNotification } = useNotifications();
 
   // Active view filters
   const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'present' | 'late' | 'wfh'>('all');
   const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [attendanceDateFilter, setAttendanceDateFilter] = useState<'all' | 'today' | 'past5' | 'october'>('all');
+  const [attendanceUserFilter, setAttendanceUserFilter] = useState<string>('all');
 
   // Office timings configuration state
-  const [startTime, setStartTime] = useState(policy.officeStartTime || '09:00');
+  const [startTime, setStartTime] = useState(policy.officeStartTime || '09:30');
   const [endTime, setEndTime] = useState(policy.officeEndTime || '18:00');
   const [gracePeriod, setGracePeriod] = useState(policy.gracePeriodMinutes || 15);
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+
+  // Quick Backfill & Manual Add Modals
+  const [showBackfillModal, setShowBackfillModal] = useState(false);
+  const [backfillTargetUser, setBackfillTargetUser] = useState<string>('all');
+  const [backfillDaysList, setBackfillDaysList] = useState<string[]>([
+    '2026-10-01',
+    '2026-10-02',
+    '2026-10-03',
+    '2026-10-04',
+    '2026-10-05'
+  ]);
+  const [backfillStartTime, setBackfillStartTime] = useState<string>('09:30');
+  const [backfillEndTime, setBackfillEndTime] = useState<string>('18:00');
+
+  const [showManualAddModal, setShowManualAddModal] = useState(false);
+  const [manualUserId, setManualUserId] = useState<string>('');
+  const [manualDate, setManualDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [manualClockIn, setManualClockIn] = useState<string>('09:30');
+  const [manualClockOut, setManualClockOut] = useState<string>('18:00');
+  const [manualStatus, setManualStatus] = useState<AttendanceRecord['status']>('present');
+  const [manualRemarks, setManualRemarks] = useState<string>('');
 
   // Modals state
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
@@ -259,13 +287,15 @@ export function ManagerDashboard() {
     return users.filter(u => u.role === 'employee' || u.role === 'manager');
   }, [users]);
 
-  // Today's team attendance records
-  const teamTodayAttendance = useMemo(() => {
-    return attendance.filter(a => a.date === todayStr && a.userId !== currentUser.id);
-  }, [attendance, todayStr, currentUser.id]);
-
   const filteredTeamAttendance = useMemo(() => {
-    return teamTodayAttendance.filter(item => {
+    return attendance.filter(item => {
+      if (item.userId === currentUser.id) return false;
+      if (attendanceUserFilter !== 'all' && item.userId !== attendanceUserFilter) return false;
+
+      if (attendanceDateFilter === 'today' && item.date !== todayStr) return false;
+      if (attendanceDateFilter === 'past5' && !['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'].includes(item.date)) return false;
+      if (attendanceDateFilter === 'october' && !item.date.startsWith('2026-10')) return false;
+
       const matchesFilter =
         attendanceFilter === 'all' ||
         (attendanceFilter === 'present' && (item.status === 'present' || item.status === 'wfh')) ||
@@ -275,11 +305,13 @@ export function ManagerDashboard() {
       const matchesSearch =
         !attendanceSearch ||
         item.userName.toLowerCase().includes(attendanceSearch.toLowerCase()) ||
-        (item.department && item.department.toLowerCase().includes(attendanceSearch.toLowerCase()));
+        (item.department && item.department.toLowerCase().includes(attendanceSearch.toLowerCase())) ||
+        item.date.includes(attendanceSearch) ||
+        (item.managerRemarks || '').toLowerCase().includes(attendanceSearch.toLowerCase());
 
       return matchesFilter && matchesSearch;
-    });
-  }, [teamTodayAttendance, attendanceFilter, attendanceSearch]);
+    }).sort((a, b) => b.date.localeCompare(a.date) || b.clockIn.localeCompare(a.clockIn));
+  }, [attendance, currentUser.id, attendanceUserFilter, attendanceDateFilter, todayStr, attendanceFilter, attendanceSearch]);
 
   // KPIs
   const activeProjects = projects.filter(p => p.status !== 'withdrawn');
@@ -423,6 +455,70 @@ export function ManagerDashboard() {
     });
 
     setEditingAttendanceRecord(null);
+  };
+
+  // Open Manual Add Modal
+  const handleOpenManualAddModal = () => {
+    setManualUserId(teamUsers[0]?.id || '');
+    setManualDate(todayStr);
+    setManualClockIn('09:30');
+    setManualClockOut('18:00');
+    setManualStatus('present');
+    setManualRemarks('Standard shift 09:30 - 18:00 (On-Time)');
+    setShowManualAddModal(true);
+  };
+
+  // Save Manual Add Attendance Record
+  const handleSaveManualAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualUserId || !manualDate || !manualClockIn) {
+      showNotification('Missing Information', 'Employee, Date, and Punch-In time are required.', 'warning');
+      return;
+    }
+    const targetUser = users.find(u => u.id === manualUserId);
+    manualRecordAttendance({
+      userId: manualUserId,
+      userName: targetUser?.name,
+      department: targetUser?.department,
+      date: manualDate,
+      clockIn: manualClockIn,
+      clockOut: manualClockOut.trim() ? manualClockOut : undefined,
+      status: manualStatus,
+      managerRemarks: manualRemarks.trim() ? manualRemarks : undefined
+    });
+    setShowManualAddModal(false);
+  };
+
+  // Execute 5-Day Quick Backfill
+  const handleExecuteBackfill = () => {
+    if (backfillDaysList.length === 0) {
+      showNotification('No Dates Selected', 'Select at least one date.', 'warning');
+      return;
+    }
+    const targetUsers = backfillTargetUser === 'all'
+      ? teamUsers
+      : teamUsers.filter(u => u.id === backfillTargetUser);
+
+    if (targetUsers.length === 0) {
+      showNotification('No Employees Found', 'No employees to backfill.', 'warning');
+      return;
+    }
+
+    const recordsToCreate = targetUsers.flatMap(emp =>
+      backfillDaysList.map(day => ({
+        userId: emp.id,
+        userName: emp.name,
+        department: emp.department || 'Engineering',
+        date: day,
+        clockIn: backfillStartTime,
+        clockOut: backfillEndTime,
+        status: 'present' as const,
+        managerRemarks: `Past 5-Day Shift Backfill (${backfillStartTime} - ${backfillEndTime})`
+      }))
+    );
+
+    bulkBackfillAttendance(recordsToCreate);
+    setShowBackfillModal(false);
   };
 
   // Download Client Executive Report PDF
@@ -973,28 +1069,81 @@ export function ManagerDashboard() {
       {/* 5. TEAM ATTENDANCE MANAGEMENT DESK                       */}
       {/* ======================================================== */}
       <div className="p-5 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-white/10 rounded-[4px] shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+        {/* Header with Title & Action Buttons */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
           <div>
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-sky-600 dark:text-cyan-400" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wide">
                 Team Attendance & Shift Desk
               </h3>
+              <span className="px-1.5 py-0.2 text-[9px] font-mono bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/20 rounded-[2px] font-bold">
+                09:30 - 18:00 PST (15m Grace)
+              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Review and adjust employee check-in timestamps, excuses, and overtime logs.
+              Review employee history, punch-in/out records, manually adjust entries, or backfill past 5 days.
             </p>
           </div>
 
-          {/* Filters & Search */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowBackfillModal(true)}
+              className="px-3 py-1.5 rounded-[2px] bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-mono font-bold text-xs shadow-xs flex items-center gap-1.5 transition-all"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>5-Day Shift Backfill</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenManualAddModal}
+              className="px-3 py-1.5 rounded-[2px] bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-mono font-bold text-xs shadow-xs flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Manual Entry</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filters & Search Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Employee Filter */}
+            <select
+              value={attendanceUserFilter}
+              onChange={(e) => setAttendanceUserFilter(e.target.value)}
+              className="glass-input text-xs font-mono py-1 px-2.5 rounded-[2px]"
+            >
+              <option value="all">All Team Members ({teamUsers.length})</option>
+              {teamUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.department || 'Engineering'})
+                </option>
+              ))}
+            </select>
+
+            {/* Date Range Filter */}
+            <select
+              value={attendanceDateFilter}
+              onChange={(e) => setAttendanceDateFilter(e.target.value as any)}
+              className="glass-input text-xs font-mono py-1 px-2.5 rounded-[2px]"
+            >
+              <option value="all">All Dates / History</option>
+              <option value="today">Today's Records</option>
+              <option value="past5">Past 5 Days (Mon-Fri)</option>
+              <option value="october">October 2026</option>
+            </select>
+
+            {/* Punctuality Status */}
             <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-[2px] text-xs font-mono">
               {(['all', 'present', 'late', 'wfh'] as const).map(f => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setAttendanceFilter(f)}
-                  className={`px-2.5 py-1 rounded-[1px] uppercase font-semibold transition-all ${
+                  className={`px-2 py-0.5 rounded-[1px] uppercase font-semibold transition-all ${
                     attendanceFilter === f
                       ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-cyan-300 shadow-xs'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -1004,17 +1153,17 @@ export function ManagerDashboard() {
                 </button>
               ))}
             </div>
+          </div>
 
-            <div className="relative w-48">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-              <input
-                type="text"
-                value={attendanceSearch}
-                onChange={(e) => setAttendanceSearch(e.target.value)}
-                placeholder="Filter employee..."
-                className="w-full glass-input pl-8 pr-2 py-1 text-xs font-mono"
-              />
-            </div>
+          <div className="relative w-48">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" />
+            <input
+              type="text"
+              value={attendanceSearch}
+              onChange={(e) => setAttendanceSearch(e.target.value)}
+              placeholder="Search member, date..."
+              className="w-full glass-input pl-8 pr-2 py-1 text-xs font-mono"
+            />
           </div>
         </div>
 
@@ -1036,8 +1185,17 @@ export function ManagerDashboard() {
             <tbody className="divide-y divide-slate-200/60 dark:divide-white/5 font-mono">
               {filteredTeamAttendance.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-slate-400 font-mono text-xs">
-                    No team attendance logs found matching current filter.
+                  <td colSpan={8} className="py-8 text-center text-slate-400 font-mono text-xs">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <span>No team attendance logs found matching current filter.</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowBackfillModal(true)}
+                        className="text-amber-600 dark:text-amber-400 underline font-bold text-xs"
+                      >
+                        Quick backfill past 5 days now
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -1061,28 +1219,56 @@ export function ManagerDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">{item.date}</td>
+                      <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
+                        <span>{item.date}</span>
+                        {item.date === todayStr && (
+                          <span className="ml-1.5 px-1 py-0.2 text-[9px] font-bold bg-sky-500/10 text-sky-600 dark:text-cyan-300 rounded-[2px]">
+                            TODAY
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-3 font-bold text-sky-700 dark:text-cyan-300">{item.clockIn}</td>
-                      <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">{item.clockOut || 'Active In Shift'}</td>
-                      <td className="py-2.5 px-3 text-slate-900 dark:text-slate-200 font-semibold">{hrs}h {mins}m</td>
+                      <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
+                        {item.clockOut || (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 text-[10px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            ACTIVE
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-900 dark:text-slate-200 font-semibold">
+                        {item.totalWorkMinutes > 0 ? `${hrs}h ${mins}m` : 'In Session'}
+                      </td>
                       <td className="py-2.5 px-3">
-                        <SquareBadge
-                          label={item.status}
-                          variant={item.status === 'present' ? 'emerald' : item.status === 'late' ? 'rose' : item.status === 'wfh' ? 'cyan' : 'amber'}
-                        />
+                        {item.isLate ? (
+                          <SquareBadge label="LATE" variant="rose" dot />
+                        ) : (
+                          <SquareBadge label="ON-TIME" variant="emerald" dot />
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-[11px] text-slate-500 max-w-[200px] truncate" title={item.managerRemarks || item.lateReason}>
                         {item.managerRemarks || item.lateReason || 'Standard shift'}
                       </td>
                       <td className="py-2.5 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditEmployeePunch(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/30 rounded-[2px] transition-all"
-                        >
-                          <Edit className="w-3 h-3" />
-                          <span>Edit Punch</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditEmployeePunch(item)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/30 rounded-[2px] transition-all"
+                            title="Edit punch"
+                          >
+                            <Edit className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteAttendanceRecord(item.id)}
+                            className="p-1 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-[2px] transition-all"
+                            title="Delete entry"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1728,6 +1914,317 @@ export function ManagerDashboard() {
                   <LiquidButton variant="primary" size="md" type="submit">
                     Save Attendance Changes
                   </LiquidButton>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* QUICK 5-DAY SHIFT BACKFILL MODAL */}
+      <AnimatePresence>
+        {showBackfillModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBackfillModal(false)}
+              className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-amber-400/40 dark:border-amber-400/30 rounded-[4px] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-[2px]">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Quick Backfill Past 5 Working Days
+                    </h3>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Populates Oct 01 - Oct 05 with On-Time 09:30 AM to 06:00 PM
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBackfillModal(false)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs font-mono">
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Select Target Employee(s)
+                  </label>
+                  <select
+                    value={backfillTargetUser}
+                    onChange={(e) => setBackfillTargetUser(e.target.value)}
+                    className="w-full glass-input py-2 px-3 text-xs"
+                  >
+                    <option value="all">⚡ All Team Members ({teamUsers.length})</option>
+                    {teamUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {u.department || 'Engineering'} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Days Included in Backfill
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[2px]">
+                    {[
+                      { date: '2026-10-01', day: 'Day 1 (Thursday)' },
+                      { date: '2026-10-02', day: 'Day 2 (Friday)' },
+                      { date: '2026-10-03', day: 'Day 3 (Saturday)' },
+                      { date: '2026-10-04', day: 'Day 4 (Sunday)' },
+                      { date: '2026-10-05', day: 'Day 5 (Monday - Today)' }
+                    ].map(item => {
+                      const isChecked = backfillDaysList.includes(item.date);
+                      return (
+                        <label key={item.date} className="flex items-center gap-2 cursor-pointer select-none text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setBackfillDaysList([...backfillDaysList, item.date]);
+                              } else {
+                                setBackfillDaysList(backfillDaysList.filter(d => d !== item.date));
+                              }
+                            }}
+                            className="rounded-[2px] text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>{item.date} <span className="text-slate-400 text-[10px]">({item.day})</span></span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Check-In Time
+                    </label>
+                    <input
+                      type="time"
+                      value={backfillStartTime}
+                      onChange={(e) => setBackfillStartTime(e.target.value)}
+                      className="w-full glass-input py-2 px-3 text-xs"
+                    />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 block">
+                      ✓ On-Time (Grace relaxation to 09:45)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Check-Out Time
+                    </label>
+                    <input
+                      type="time"
+                      value={backfillEndTime}
+                      onChange={(e) => setBackfillEndTime(e.target.value)}
+                      className="w-full glass-input py-2 px-3 text-xs"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Shift duration: 8h 30m
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-[2px] text-slate-700 dark:text-slate-300 text-[11px]">
+                  <strong>Summary:</strong> Will create or update {backfillDaysList.length} attendance records per selected employee with 8 hours 30 minutes worked and On-Time status.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowBackfillModal(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteBackfill}
+                  className="px-4 py-2 rounded-[2px] bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs tracking-wide shadow-md flex items-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Execute 5-Day Backfill</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MANUAL SINGLE ATTENDANCE ENTRY MODAL */}
+      <AnimatePresence>
+        {showManualAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowManualAddModal(false)}
+              className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1, y: 0 }}
+              className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-sky-400/40 dark:border-cyan-400/30 rounded-[4px] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-sky-500/10 text-sky-600 dark:text-cyan-400 rounded-[2px]">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Manual Attendance Entry
+                    </h3>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Log single shift punch for any date (past or today)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManualAddModal(false)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveManualAdd} className="space-y-4 text-xs font-mono">
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Employee
+                  </label>
+                  <select
+                    required
+                    value={manualUserId}
+                    onChange={(e) => setManualUserId(e.target.value)}
+                    className="w-full glass-input py-2 px-3 text-xs"
+                  >
+                    {teamUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {u.department || 'Engineering'} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    className="w-full glass-input py-2 px-3 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Check-In Time
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={manualClockIn}
+                      onChange={(e) => setManualClockIn(e.target.value)}
+                      className="w-full glass-input py-2 px-3 text-xs"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Grace relaxation limit: 09:45 AM
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Check-Out Time (Optional)
+                    </label>
+                    <input
+                      type="time"
+                      value={manualClockOut}
+                      onChange={(e) => setManualClockOut(e.target.value)}
+                      className="w-full glass-input py-2 px-3 text-xs"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Leave blank if employee is currently in shift
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Recorded Status
+                  </label>
+                  <select
+                    value={manualStatus}
+                    onChange={(e) => setManualStatus(e.target.value as any)}
+                    className="w-full glass-input py-2 px-3 text-xs"
+                  >
+                    <option value="present">Present (On-Time)</option>
+                    <option value="late">Late Arrival</option>
+                    <option value="half_day">Half Day</option>
+                    <option value="wfh">Work From Home (WFH)</option>
+                    <option value="leave">On Leave</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Manager Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={manualRemarks}
+                    onChange={(e) => setManualRemarks(e.target.value)}
+                    placeholder="e.g. Standard shift 09:30 - 18:00 or approved exception"
+                    className="w-full glass-input py-2 px-3 text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualAddModal(false)}
+                    className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-[2px] bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs tracking-wide shadow-md flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Save Attendance</span>
+                  </button>
                 </div>
               </form>
             </motion.div>

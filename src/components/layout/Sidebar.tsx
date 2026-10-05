@@ -111,6 +111,7 @@ export function Sidebar({
     if (unifiedWorkspaceTab === 'manager') {
       menuItems = [
         { view: 'manager_dashboard', label: 'Home', icon: Home },
+        { view: 'hr_attendance', label: 'Attendance Desk', icon: Clock },
         { view: 'manager_tasks', label: 'Task', icon: CheckSquare, badgeText: `${myPendingTasksCount}` },
         { view: 'manager_team_monitor', label: 'Activity', icon: Activity },
         { view: 'team_chat', label: 'Team Chat', icon: MessageSquare, badgeText: 'Live' },
@@ -119,7 +120,7 @@ export function Sidebar({
       ];
     } else {
       menuItems = [
-        { view: 'hr_attendance', label: 'Attendance', icon: Clock },
+        { view: 'hr_attendance', label: 'Attendance Desk', icon: Clock },
         { view: 'hr_leave_management', label: 'Leave Quotas', icon: CalendarDays },
         { view: 'hr_payroll', label: 'Payroll & Slips', icon: DollarSign, badgeText: 'LOP' },
         { view: 'team_chat', label: 'Team Chat', icon: MessageSquare, badgeText: 'Live' },

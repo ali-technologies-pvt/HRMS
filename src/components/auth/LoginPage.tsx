@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { useNotifications } from '@/context/NotificationContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Lock,
@@ -13,19 +12,14 @@ import {
   ArrowRight,
   Shield,
   ShieldAlert,
-  Sparkles,
   Sun,
   Moon,
-  Users,
-  Briefcase,
-  CheckCircle2,
   Info
 } from 'lucide-react';
 
 export function LoginPage() {
-  const { loginWithCredentials, users } = useAuth();
+  const { loginWithCredentials } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { showNotification } = useNotifications();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,35 +27,25 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [autofillFlashed, setAutofillFlashed] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!email.trim() || !password) {
-      setError('Please provide both corporate email and password.');
+      setError('Please enter your registered email address and corporate password.');
       return;
     }
 
     setIsLoading(true);
-    // Simulate natural authentication handshake
+    // Secure authentication handshake
     setTimeout(() => {
       const res = loginWithCredentials(email.trim(), password);
       setIsLoading(false);
       if (!res.success) {
-        setError(res.error || 'Authentication failed. Please verify credentials.');
+        setError(res.error || 'Invalid email or password. Access denied.');
       }
     }, 450);
-  };
-
-  const handleQuickAutofillAdmin = () => {
-    setEmail('ali.raza@quickslogix.com');
-    setPassword('#Imthepassword@123#');
-    setError('');
-    setAutofillFlashed(true);
-    showNotification('Autofill Applied', 'Super Admin credentials loaded into form.', 'info');
-    setTimeout(() => setAutofillFlashed(false), 1500);
   };
 
   return (
@@ -87,7 +71,7 @@ export function LoginPage() {
                 quickslogx
               </span>
               <span className="px-1.5 py-0.2 text-[10px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
-                OS 2.6
+                HRMS
               </span>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tight">
@@ -115,15 +99,9 @@ export function LoginPage() {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-        className="w-full max-w-[440px] my-auto relative z-10"
+        className="w-full max-w-[420px] my-auto relative z-10"
       >
-        <div
-          className={`liquid-glass-elevated border rounded-[4px] p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-300 ${
-            autofillFlashed
-              ? 'border-emerald-400 dark:border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.25)]'
-              : 'border-slate-200/90 dark:border-white/15'
-          }`}
-        >
+        <div className="liquid-glass-elevated border border-slate-200/90 dark:border-white/15 rounded-[4px] p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-300">
           {/* Top Edge Specular Highlight Line */}
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/60 dark:via-cyan-400/60 to-transparent" />
 
@@ -137,34 +115,8 @@ export function LoginPage() {
               Sign In to Portal
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Access your role-specific dashboard and workspace.
+              Enter your credentials to access your dashboard.
             </p>
-          </div>
-
-          {/* Quick 1-Tap Autofill Chip for Super Admin */}
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={handleQuickAutofillAdmin}
-              className="w-full p-2.5 rounded-[3px] bg-black/[0.03] dark:bg-white/[0.04] hover:bg-sky-500/10 dark:hover:bg-cyan-500/10 border border-dashed border-sky-400/40 dark:border-cyan-400/30 text-left transition-all group flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-[2px] bg-sky-500/20 flex items-center justify-center text-sky-600 dark:text-cyan-400">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block group-hover:text-sky-600 dark:group-hover:text-cyan-400 transition-colors">
-                    1-Tap Autofill: Super Admin
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                    ali.raza@quickslogix.com
-                  </span>
-                </div>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-[1px] bg-sky-500/15 text-sky-700 dark:text-cyan-300 font-semibold group-hover:scale-105 transition-transform">
-                Load Fill
-              </span>
-            </button>
           </div>
 
           {/* Error Message Toast */}
@@ -199,7 +151,7 @@ export function LoginPage() {
                   autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ali.raza@quickslogix.com"
+                  placeholder="name@company.com"
                   className="w-full glass-input pl-9 pr-3 py-2.5 text-sm transition-all text-slate-900 dark:text-white"
                 />
               </div>
@@ -272,26 +224,10 @@ export function LoginPage() {
             </motion.button>
           </form>
 
-          {/* Access Flow Architecture Info Card */}
-          <div className="mt-6 pt-5 border-t border-slate-200/80 dark:border-white/10 space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1.5">
-              <Info className="w-3 h-3 text-sky-500" />
-              Onboarding & Role Hierarchy
-            </span>
-            <div className="grid grid-cols-1 gap-1.5 text-[11px]">
-              <div className="p-2 rounded-[2px] bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                <span><strong className="text-slate-900 dark:text-white">Super Admin:</strong> Creates Department Managers.</span>
-              </div>
-              <div className="p-2 rounded-[2px] bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                <span><strong className="text-slate-900 dark:text-white">Managers:</strong> Onboard Employees with temp password.</span>
-              </div>
-              <div className="p-2 rounded-[2px] bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span><strong className="text-slate-900 dark:text-white">Employees:</strong> 1st login requires new password & customization.</span>
-              </div>
-            </div>
+          {/* Privacy & Compliance Assurance */}
+          <div className="mt-6 pt-4 border-t border-slate-200/80 dark:border-white/10 flex items-center justify-center gap-1.5 text-slate-400 text-[11px] font-mono">
+            <Info className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span>Authorized Corporate Staff & Management Only</span>
           </div>
         </div>
       </motion.main>

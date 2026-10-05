@@ -41,7 +41,7 @@ export const initialChatGroups: ChatGroup[] = [];
 export const initialChatMessages: ChatMessage[] = [];
 
 export const initialCompanyPolicy: CompanyPolicy = {
-  officeStartTime: '09:00',
+  officeStartTime: '09:30',
   officeEndTime: '18:00',
   gracePeriodMinutes: 15,
   workDaysPerWeek: 5,
