@@ -143,6 +143,7 @@ export interface Announcement {
   authorRole: UserRole;
   priority?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Payslip {

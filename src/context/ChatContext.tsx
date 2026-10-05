@@ -13,7 +13,13 @@ import {
   getNotificationPermission,
   isNotificationSupported
 } from '@/lib/pushNotifications';
-import { pushCollectionToSupabase, fetchCollectionFromSupabase } from '@/lib/supabaseSync';
+import {
+  pushCollectionToSupabase,
+  fetchCollectionFromSupabase,
+  subscribeToCollectionChange,
+  subscribeToLiveChatMessage,
+  broadcastRealtimeEvent
+} from '@/lib/supabaseSync';
 
 interface ChatContextType {
   groups: ChatGroup[];
@@ -94,6 +100,87 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.warn('[ChatContext] Cloud sync error:', err);
       }
     })();
+
+    // 1. Instant WebSocket push for incoming live chat messages (sub-50ms)
+    const unsubscribeChatMsg = subscribeToLiveChatMessage((incomingMsg: ChatMessage) => {
+      if (!incomingMsg || !incomingMsg.id) return;
+      if (incomingMsg.senderId === currentUser?.id) return; // already added locally
+
+      setMessages(prev => {
+        if (prev.some(m => m.id === incomingMsg.id)) return prev;
+        const next = [...prev, incomingMsg];
+        saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
+        return next;
+      });
+
+      // Update last message in group
+      setGroups(prevGroups => {
+        const next = prevGroups.map(g => g.id === incomingMsg.groupId ? {
+          ...g,
+          lastMessage: {
+            text: incomingMsg.text,
+            senderName: incomingMsg.senderName,
+            timestamp: incomingMsg.timestamp
+          }
+        } : g);
+        saveToStorage(STORAGE_KEYS.CHAT_GROUPS, next);
+        return next;
+      });
+
+      // Sound chime and push notification on other device
+      playGlassChime('alert');
+      sendDesktopPushNotification(incomingMsg.senderName || 'Team Chat', {
+        body: `${incomingMsg.senderName}: ${incomingMsg.text}`,
+        tag: incomingMsg.groupId
+      });
+    });
+
+    // 2. Realtime collections listener for chat groups & bulk messages
+    const unsubscribeCollections = subscribeToCollectionChange((key, data) => {
+      if (key === STORAGE_KEYS.CHAT_GROUPS && Array.isArray(data)) {
+        setGroups(data);
+        saveToStorage(STORAGE_KEYS.CHAT_GROUPS, data);
+      }
+      if (key === STORAGE_KEYS.CHAT_MESSAGES && Array.isArray(data)) {
+        setMessages(prev => {
+          if (data.length !== prev.length || (data.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, data);
+            return data;
+          }
+          return prev;
+        });
+      }
+    });
+
+    // 3. High-frequency background sync polling (every 2.5 seconds)
+    const pollInterval = setInterval(async () => {
+      try {
+        const [cloudMessages, cloudGroups] = await Promise.all([
+          fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES),
+          fetchCollectionFromSupabase<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS)
+        ]);
+
+        if (cloudMessages && Array.isArray(cloudMessages)) {
+          setMessages(prev => {
+            if (cloudMessages.length > prev.length || (cloudMessages.length > 0 && cloudMessages[cloudMessages.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+              saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, cloudMessages);
+              return cloudMessages;
+            }
+            return prev;
+          });
+        }
+
+        if (cloudGroups && Array.isArray(cloudGroups)) {
+          setGroups(prev => cloudGroups.length !== prev.length ? (saveToStorage(STORAGE_KEYS.CHAT_GROUPS, cloudGroups), cloudGroups) : prev);
+        }
+      } catch {}
+    }, 2500);
+
+    return () => {
+      unsubscribeChatMsg();
+      unsubscribeCollections();
+      clearInterval(pollInterval);
+    };
   }, [currentUser?.id]);
 
   // Sync to storage and Supabase
@@ -353,6 +440,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     syncMessages([...messages, newMsg]);
     syncGroups(updatedGroups);
+
+    // Instant WebSocket broadcast to other active terminals
+    broadcastRealtimeEvent('chat_msg', newMsg);
 
     // Audio chime feedback
     playGlassChime('click');

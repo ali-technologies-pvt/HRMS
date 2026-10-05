@@ -116,7 +116,8 @@ export function Sidebar({
         { view: 'manager_team_monitor', label: 'Activity', icon: Activity },
         { view: 'team_chat', label: 'Team Chat', icon: MessageSquare, badgeText: 'Live' },
         { view: 'manager_approvals', label: 'Requests', icon: Bell, hasRedDot: pendingRequestsCount > 0 },
-        { view: 'manager_eod_desk', label: 'EOD Reports', icon: FileCheck2 }
+        { view: 'manager_eod_desk', label: 'EOD Reports', icon: FileCheck2 },
+        { view: 'hr_announcements', label: 'Announcements', icon: Megaphone }
       ];
     } else {
       menuItems = [

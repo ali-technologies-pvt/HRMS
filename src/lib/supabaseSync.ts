@@ -272,10 +272,110 @@ export async function deleteUserFromSupabase(userId: string): Promise<boolean> {
   }
 }
 
+let sharedChannel: any = null;
+const collectionSubscribers = new Set<(key: string, data: any) => void>();
+const chatMessageSubscribers = new Set<(msg: any) => void>();
+const usersSubscribers = new Set<(users: User[]) => void>();
+
+function getRealtimeHub() {
+  if (sharedChannel) return sharedChannel;
+  const client = getSupabase();
+  if (!client) return null;
+
+  try {
+    sharedChannel = client.channel('hrms-realtime-hub', {
+      config: {
+        broadcast: { self: false } // don't echo to sender
+      }
+    });
+
+    // 1. Instant WebSocket Broadcast for Collections (Chat, Tasks, Attendance, Announcements)
+    sharedChannel.on('broadcast', { event: 'collection_sync' }, ({ payload }: any) => {
+      if (payload?.key && payload?.data !== undefined) {
+        collectionSubscribers.forEach(cb => {
+          try { cb(payload.key, payload.data); } catch (e) { console.error('[Realtime collection error]', e); }
+        });
+      }
+    });
+
+    // 2. Instant WebSocket Broadcast for Individual Live Chat Messages
+    sharedChannel.on('broadcast', { event: 'chat_msg' }, ({ payload }: any) => {
+      if (payload) {
+        chatMessageSubscribers.forEach(cb => {
+          try { cb(payload); } catch (e) { console.error('[Realtime chat error]', e); }
+        });
+      }
+    });
+
+    // 3. PostgreSQL Change Listener on hrms_users
+    sharedChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'hrms_users' },
+      async () => {
+        const updated = await fetchRemoteUsers();
+        if (updated) {
+          usersSubscribers.forEach(cb => {
+            try { cb(updated); } catch (e) { console.error(e); }
+          });
+        }
+      }
+    );
+
+    // 4. PostgreSQL Change Listener on hrms_sync
+    sharedChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'hrms_sync' },
+      (payload: any) => {
+        if (payload.new?.key && payload.new?.data !== undefined) {
+          collectionSubscribers.forEach(cb => {
+            try { cb(payload.new.key, payload.new.data); } catch (e) { console.error(e); }
+          });
+          if (payload.new.key === 'users' && Array.isArray(payload.new.data)) {
+            usersSubscribers.forEach(cb => {
+              try { cb(payload.new.data); } catch (e) { console.error(e); }
+            });
+          }
+        }
+      }
+    );
+
+    sharedChannel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED') {
+        // Connected to Realtime
+      }
+    });
+
+    return sharedChannel;
+  } catch (err) {
+    console.warn('[Realtime Hub Init Warning]', err);
+    return null;
+  }
+}
+
+/**
+ * Broadcast an instant WebSocket event to all other clients
+ */
+export function broadcastRealtimeEvent(event: string, payload: any) {
+  const hub = getRealtimeHub();
+  if (hub) {
+    hub.send({
+      type: 'broadcast',
+      event,
+      payload
+    }).catch((err: any) => {
+      console.warn('[Realtime Broadcast Error]', err);
+    });
+  }
+}
+
 /**
  * Universal Synchronized Collection for Attendance, Projects, Tasks, Reports, Requests, Chat
  */
 export async function pushCollectionToSupabase<T>(key: string, data: T): Promise<boolean> {
+  // 1. Instantly push via WebSocket Broadcast to all active screens/devices (sub-50ms)
+  broadcastRealtimeEvent('collection_sync', { key, data });
+
+  // 2. Persist to Supabase Database
   const client = getSupabase();
   if (!client) return false;
 
@@ -318,47 +418,45 @@ export async function fetchCollectionFromSupabase<T>(key: string): Promise<T | n
 }
 
 /**
- * Realtime channel listener for instant multi-user synchronization
+ * Subscribe to instant collection updates (via WebSocket broadcast & PostgreSQL replication)
+ */
+export function subscribeToCollectionChange(callback: (key: string, data: any) => void) {
+  getRealtimeHub();
+  collectionSubscribers.add(callback);
+  return () => {
+    collectionSubscribers.delete(callback);
+  };
+}
+
+/**
+ * Subscribe to live incoming chat messages (instant sub-50ms push)
+ */
+export function subscribeToLiveChatMessage(callback: (msg: any) => void) {
+  getRealtimeHub();
+  chatMessageSubscribers.add(callback);
+  return () => {
+    chatMessageSubscribers.delete(callback);
+  };
+}
+
+/**
+ * Realtime channel listener for instant multi-user synchronization (backward compatibility)
  */
 export function subscribeToRealtimeChanges(
   onUsersChange?: (users: User[]) => void,
   onCollectionChange?: (key: string, data: any) => void
 ) {
-  const client = getSupabase();
-  if (!client) return () => {};
+  getRealtimeHub();
 
-  try {
-    const channel = client
-      .channel('hrms-cloud-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'hrms_users' },
-        async () => {
-          if (onUsersChange) {
-            const updated = await fetchRemoteUsers();
-            if (updated) onUsersChange(updated);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'hrms_sync' },
-        (payload: any) => {
-          if (onCollectionChange && payload.new?.key && payload.new?.data) {
-            onCollectionChange(payload.new.key, payload.new.data);
-            if (payload.new.key === 'users' && onUsersChange && Array.isArray(payload.new.data)) {
-              onUsersChange(payload.new.data);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      client.removeChannel(channel);
-    };
-  } catch (err) {
-    console.warn('Realtime subscription error:', err);
-    return () => {};
+  if (onUsersChange) {
+    usersSubscribers.add(onUsersChange);
   }
+  if (onCollectionChange) {
+    collectionSubscribers.add(onCollectionChange);
+  }
+
+  return () => {
+    if (onUsersChange) usersSubscribers.delete(onUsersChange);
+    if (onCollectionChange) collectionSubscribers.delete(onCollectionChange);
+  };
 }

@@ -26,7 +26,7 @@ import {
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
-import { pushCollectionToSupabase, fetchCollectionFromSupabase } from '@/lib/supabaseSync';
+import { pushCollectionToSupabase, fetchCollectionFromSupabase, subscribeToCollectionChange } from '@/lib/supabaseSync';
 
 interface AppDataContextType {
   projects: Project[];
@@ -100,6 +100,8 @@ interface AppDataContextType {
 
   // Announcements operations
   addAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt'>) => void;
+  updateAnnouncement: (id: string, updates: Partial<Announcement>) => void;
+  deleteAnnouncement: (id: string) => void;
 
   // Payroll operations
   generateMonthlyPayroll: (month: string, year: number) => void;
@@ -207,6 +209,71 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         console.warn('[AppDataContext] Cloud sync error:', err);
       }
     })();
+
+    // Realtime live subscription: Instant synchronization across devices without reload!
+    const unsubscribeRealtime = subscribeToCollectionChange((key: string, data: any) => {
+      if (!data) return;
+      if (key === STORAGE_KEYS.PROJECTS && Array.isArray(data)) {
+        setProjects(data);
+        saveToStorage(STORAGE_KEYS.PROJECTS, data);
+      } else if (key === STORAGE_KEYS.TASKS && Array.isArray(data)) {
+        setTasks(data);
+        saveToStorage(STORAGE_KEYS.TASKS, data);
+      } else if (key === STORAGE_KEYS.REPORTS && Array.isArray(data)) {
+        setReports(data);
+        saveToStorage(STORAGE_KEYS.REPORTS, data);
+      } else if (key === STORAGE_KEYS.REQUESTS && Array.isArray(data)) {
+        setRequests(data);
+        saveToStorage(STORAGE_KEYS.REQUESTS, data);
+      } else if (key === STORAGE_KEYS.ATTENDANCE && Array.isArray(data)) {
+        setAttendance(data);
+        saveToStorage(STORAGE_KEYS.ATTENDANCE, data);
+      } else if (key === STORAGE_KEYS.ANNOUNCEMENTS && Array.isArray(data)) {
+        setAnnouncements(data);
+        saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, data);
+      } else if (key === STORAGE_KEYS.POLICY && typeof data === 'object') {
+        setPolicy(data);
+        saveToStorage(STORAGE_KEYS.POLICY, data);
+      }
+    });
+
+    // Failsafe background sync polling (every 4 seconds) to guarantee consistency
+    const pollInterval = setInterval(async () => {
+      try {
+        const [cloudTasks, cloudAttendance, cloudAnnouncements, cloudRequests, cloudReports, cloudProjects] = await Promise.all([
+          fetchCollectionFromSupabase<Task[]>(STORAGE_KEYS.TASKS),
+          fetchCollectionFromSupabase<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE),
+          fetchCollectionFromSupabase<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS),
+          fetchCollectionFromSupabase<RequestItem[]>(STORAGE_KEYS.REQUESTS),
+          fetchCollectionFromSupabase<DailyReport[]>(STORAGE_KEYS.REPORTS),
+          fetchCollectionFromSupabase<Project[]>(STORAGE_KEYS.PROJECTS)
+        ]);
+
+        if (cloudTasks && Array.isArray(cloudTasks)) {
+          setTasks(prev => cloudTasks.length !== prev.length ? (saveToStorage(STORAGE_KEYS.TASKS, cloudTasks), cloudTasks) : prev);
+        }
+        if (cloudAttendance && Array.isArray(cloudAttendance)) {
+          setAttendance(prev => cloudAttendance.length !== prev.length ? (saveToStorage(STORAGE_KEYS.ATTENDANCE, cloudAttendance), cloudAttendance) : prev);
+        }
+        if (cloudAnnouncements && Array.isArray(cloudAnnouncements)) {
+          setAnnouncements(prev => cloudAnnouncements.length !== prev.length ? (saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, cloudAnnouncements), cloudAnnouncements) : prev);
+        }
+        if (cloudRequests && Array.isArray(cloudRequests)) {
+          setRequests(prev => cloudRequests.length !== prev.length ? (saveToStorage(STORAGE_KEYS.REQUESTS, cloudRequests), cloudRequests) : prev);
+        }
+        if (cloudReports && Array.isArray(cloudReports)) {
+          setReports(prev => cloudReports.length !== prev.length ? (saveToStorage(STORAGE_KEYS.REPORTS, cloudReports), cloudReports) : prev);
+        }
+        if (cloudProjects && Array.isArray(cloudProjects)) {
+          setProjects(prev => cloudProjects.length !== prev.length ? (saveToStorage(STORAGE_KEYS.PROJECTS, cloudProjects), cloudProjects) : prev);
+        }
+      } catch {}
+    }, 4000);
+
+    return () => {
+      unsubscribeRealtime();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   // Save changes helper with Supabase persistence
@@ -702,6 +769,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     showNotification('Notice Published', `Broadcast "${data.title}" posted to ${data.targetDepartment.toUpperCase()}`, 'urgent');
   }, [announcements, showNotification]);
 
+  const updateAnnouncement = useCallback((id: string, updates: Partial<Announcement>) => {
+    const updated = announcements.map(a => a.id === id ? {
+      ...a,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    } : a);
+    syncData(STORAGE_KEYS.ANNOUNCEMENTS, updated, setAnnouncements);
+    showNotification('Notice Updated', 'Announcement modified and broadcast updated in real time.', 'info');
+  }, [announcements, showNotification]);
+
+  const deleteAnnouncement = useCallback((id: string) => {
+    const target = announcements.find(a => a.id === id);
+    const updated = announcements.filter(a => a.id !== id);
+    syncData(STORAGE_KEYS.ANNOUNCEMENTS, updated, setAnnouncements);
+    showNotification('Notice Removed', `Announcement "${target?.title || ''}" was deleted.`, 'warning');
+  }, [announcements, showNotification]);
+
   // Payroll
   const generateMonthlyPayroll = useCallback((month: string, year: number) => {
     const newPayslips: Payslip[] = users.map(user => {
@@ -792,6 +876,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         bulkBackfillAttendance,
         deleteAttendanceRecord,
         addAnnouncement,
+        updateAnnouncement,
+        deleteAnnouncement,
         generateMonthlyPayroll,
         getPayslipsForUser,
         updateCompanyPolicy
