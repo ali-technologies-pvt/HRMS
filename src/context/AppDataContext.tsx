@@ -26,6 +26,7 @@ import {
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
+import { pushCollectionToSupabase, fetchCollectionFromSupabase } from '@/lib/supabaseSync';
 
 interface AppDataContextType {
   projects: Project[];
@@ -123,7 +124,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [payslips, setPayslips] = useState<Payslip[]>(initialPayslips);
   const [policy, setPolicy] = useState<CompanyPolicy>(initialCompanyPolicy);
 
-  // Hydrate state from localStorage on load
+  // Hydrate state from localStorage on load, then sync with Supabase cloud
   useEffect(() => {
     setProjects(loadFromStorage<Project[]>(STORAGE_KEYS.PROJECTS, initialProjects));
     setTasks(loadFromStorage<Task[]>(STORAGE_KEYS.TASKS, initialTasks));
@@ -139,12 +140,82 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       saveToStorage(STORAGE_KEYS.POLICY, loadedPolicy);
     }
     setPolicy(loadedPolicy);
+
+    // Fetch collections from Supabase
+    (async () => {
+      try {
+        const [cloudProjects, cloudTasks, cloudReports, cloudRequests, cloudAttendance, cloudAnnouncements, cloudPolicy] = await Promise.all([
+          fetchCollectionFromSupabase<Project[]>(STORAGE_KEYS.PROJECTS),
+          fetchCollectionFromSupabase<Task[]>(STORAGE_KEYS.TASKS),
+          fetchCollectionFromSupabase<DailyReport[]>(STORAGE_KEYS.REPORTS),
+          fetchCollectionFromSupabase<RequestItem[]>(STORAGE_KEYS.REQUESTS),
+          fetchCollectionFromSupabase<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE),
+          fetchCollectionFromSupabase<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS),
+          fetchCollectionFromSupabase<CompanyPolicy>(STORAGE_KEYS.POLICY)
+        ]);
+
+        if (cloudProjects && cloudProjects.length > 0) {
+          setProjects(cloudProjects);
+          saveToStorage(STORAGE_KEYS.PROJECTS, cloudProjects);
+        } else {
+          const local = loadFromStorage<Project[]>(STORAGE_KEYS.PROJECTS, initialProjects);
+          if (local && local.length > 0) pushCollectionToSupabase(STORAGE_KEYS.PROJECTS, local).catch(console.warn);
+        }
+
+        if (cloudTasks && cloudTasks.length > 0) {
+          setTasks(cloudTasks);
+          saveToStorage(STORAGE_KEYS.TASKS, cloudTasks);
+        } else {
+          const local = loadFromStorage<Task[]>(STORAGE_KEYS.TASKS, initialTasks);
+          if (local && local.length > 0) pushCollectionToSupabase(STORAGE_KEYS.TASKS, local).catch(console.warn);
+        }
+
+        if (cloudReports && cloudReports.length > 0) {
+          setReports(cloudReports);
+          saveToStorage(STORAGE_KEYS.REPORTS, cloudReports);
+        } else {
+          const local = loadFromStorage<DailyReport[]>(STORAGE_KEYS.REPORTS, initialDailyReports);
+          if (local && local.length > 0) pushCollectionToSupabase(STORAGE_KEYS.REPORTS, local).catch(console.warn);
+        }
+
+        if (cloudRequests && cloudRequests.length > 0) {
+          setRequests(cloudRequests);
+          saveToStorage(STORAGE_KEYS.REQUESTS, cloudRequests);
+        } else {
+          const local = loadFromStorage<RequestItem[]>(STORAGE_KEYS.REQUESTS, initialRequests);
+          if (local && local.length > 0) pushCollectionToSupabase(STORAGE_KEYS.REQUESTS, local).catch(console.warn);
+        }
+
+        if (cloudAttendance && cloudAttendance.length > 0) {
+          setAttendance(cloudAttendance);
+          saveToStorage(STORAGE_KEYS.ATTENDANCE, cloudAttendance);
+        } else {
+          const local = loadFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, initialAttendance);
+          if (local && local.length > 0) pushCollectionToSupabase(STORAGE_KEYS.ATTENDANCE, local).catch(console.warn);
+        }
+
+        if (cloudAnnouncements && cloudAnnouncements.length > 0) {
+          setAnnouncements(cloudAnnouncements);
+          saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, cloudAnnouncements);
+        }
+
+        if (cloudPolicy) {
+          setPolicy(cloudPolicy);
+          saveToStorage(STORAGE_KEYS.POLICY, cloudPolicy);
+        }
+      } catch (err) {
+        console.warn('[AppDataContext] Cloud sync error:', err);
+      }
+    })();
   }, []);
 
-  // Save changes helper
+  // Save changes helper with Supabase persistence
   const syncData = <T,>(key: string, data: T, setter: React.Dispatch<React.SetStateAction<T>>) => {
     setter(data);
     saveToStorage(key, data);
+    pushCollectionToSupabase(key, data).catch((err) => {
+      console.warn(`[AppDataContext] Failed to push collection ${key} to Supabase:`, err);
+    });
   };
 
   // Projects

@@ -13,6 +13,7 @@ import {
   getNotificationPermission,
   isNotificationSupported
 } from '@/lib/pushNotifications';
+import { pushCollectionToSupabase, fetchCollectionFromSupabase } from '@/lib/supabaseSync';
 
 interface ChatContextType {
   groups: ChatGroup[];
@@ -43,7 +44,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [desktopPushStatus, setDesktopPushStatus] = useState<NotificationPermission>('default');
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Initialize storage
+  // Initialize storage & cloud sync
   useEffect(() => {
     const loadedGroups = loadFromStorage<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS, initialChatGroups);
     const loadedMessages = loadFromStorage<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES, initialChatMessages);
@@ -63,17 +64,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     setIsLoaded(true);
+
+    // Sync from Supabase cloud
+    (async () => {
+      try {
+        const [cloudGroups, cloudMessages] = await Promise.all([
+          fetchCollectionFromSupabase<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS),
+          fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES)
+        ]);
+
+        if (cloudGroups && cloudGroups.length > 0) {
+          setGroups(cloudGroups);
+          saveToStorage(STORAGE_KEYS.CHAT_GROUPS, cloudGroups);
+          if (!activeGroupId) {
+            const userGroup = cloudGroups.find(g => g.memberIds.includes(currentUser?.id || ''));
+            if (userGroup) setActiveGroupId(userGroup.id);
+          }
+        } else if (loadedGroups.length > 0) {
+          pushCollectionToSupabase(STORAGE_KEYS.CHAT_GROUPS, loadedGroups).catch(console.warn);
+        }
+
+        if (cloudMessages && cloudMessages.length > 0) {
+          setMessages(cloudMessages);
+          saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, cloudMessages);
+        } else if (loadedMessages.length > 0) {
+          pushCollectionToSupabase(STORAGE_KEYS.CHAT_MESSAGES, loadedMessages).catch(console.warn);
+        }
+      } catch (err) {
+        console.warn('[ChatContext] Cloud sync error:', err);
+      }
+    })();
   }, [currentUser?.id]);
 
-  // Sync to storage
+  // Sync to storage and Supabase
   const syncGroups = useCallback((updated: ChatGroup[]) => {
     setGroups(updated);
     saveToStorage(STORAGE_KEYS.CHAT_GROUPS, updated);
+    pushCollectionToSupabase(STORAGE_KEYS.CHAT_GROUPS, updated).catch(console.warn);
   }, []);
 
   const syncMessages = useCallback((updated: ChatMessage[]) => {
     setMessages(updated);
     saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, updated);
+    pushCollectionToSupabase(STORAGE_KEYS.CHAT_MESSAGES, updated).catch(console.warn);
   }, []);
 
   const enableDesktopPush = async () => {

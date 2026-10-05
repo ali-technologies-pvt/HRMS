@@ -38,14 +38,16 @@ export function LoginPage() {
     }
 
     setIsLoading(true);
-    // Secure authentication handshake
-    setTimeout(() => {
-      const res = loginWithCredentials(email.trim(), password);
+    try {
+      const res = await loginWithCredentials(email.trim(), password);
       setIsLoading(false);
       if (!res.success) {
         setError(res.error || 'Invalid email or password. Access denied.');
       }
-    }, 450);
+    } catch {
+      setIsLoading(false);
+      setError('Authentication failed. Please check network connection.');
+    }
   };
 
   return (

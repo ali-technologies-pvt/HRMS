@@ -5,13 +5,21 @@ import { User, UserRole, UserStatus } from '@/types';
 import { initialUsers } from '@/lib/initialData';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
 import { useNotifications } from './NotificationContext';
+import {
+  fetchRemoteUsers,
+  fetchUserByEmail,
+  pushUserToSupabase,
+  pushUsersBulkToSupabase,
+  deleteUserFromSupabase,
+  subscribeToRealtimeChanges
+} from '@/lib/supabaseSync';
 
 interface AuthContextType {
   currentUser: User;
   isAuthenticated: boolean;
   users: User[];
   loginAsUser: (userId: string) => void;
-  loginWithCredentials: (email: string, pass: string) => { success: boolean; error?: string };
+  loginWithCredentials: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   updateCurrentUserProfile: (updates: Partial<User>) => void;
@@ -32,16 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Initialize from storage on mount
+  // 1. Initialize from local storage on mount + sync with Supabase cloud
   useEffect(() => {
-    const loadedUsers = loadFromStorage<User[]>(STORAGE_KEYS.USERS, initialUsers);
-    setUsers(loadedUsers);
+    let isMounted = true;
+    const localUsers = loadFromStorage<User[]>(STORAGE_KEYS.USERS, initialUsers);
+    setUsers(localUsers);
 
     const savedAuthState = loadFromStorage<boolean>(STORAGE_KEYS.IS_AUTHENTICATED, false);
     const savedUserId = loadFromStorage<string>(STORAGE_KEYS.ACTIVE_USER_ID, '');
 
     if (savedAuthState && savedUserId) {
-      const matched = loadedUsers.find(u => u.id === savedUserId);
+      const matched = localUsers.find(u => u.id === savedUserId);
       if (matched) {
         setCurrentUser(matched);
         setIsAuthenticated(true);
@@ -52,9 +61,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(false);
     }
     setIsLoaded(true);
+
+    // 2. Asynchronously fetch latest users from Supabase Cloud
+    async function syncCloudUsers() {
+      try {
+        const remote = await fetchRemoteUsers();
+        if (!isMounted) return;
+
+        if (remote && remote.length > 0) {
+          // Merge: remote has priority, but keep any local users created offline
+          const remoteEmails = new Set(remote.map(u => u.email.trim().toLowerCase()));
+          const localOnly = localUsers.filter(u => !remoteEmails.has(u.email.trim().toLowerCase()));
+
+          if (localOnly.length > 0) {
+            // Push offline/locally created users to Supabase so other devices see them
+            pushUsersBulkToSupabase(localOnly);
+          }
+
+          const merged = [...remote, ...localOnly];
+          setUsers(merged);
+          saveToStorage(STORAGE_KEYS.USERS, merged);
+
+          // Update active user in session if profile was updated on cloud
+          if (savedAuthState && savedUserId) {
+            const upToDateUser = merged.find(u => u.id === savedUserId);
+            if (upToDateUser) setCurrentUser(upToDateUser);
+          }
+        } else if (localUsers.length > 0) {
+          // Supabase is empty or connected for the first time: Seed cloud with local users!
+          pushUsersBulkToSupabase(localUsers);
+        }
+      } catch (err) {
+        console.warn('Background cloud user sync error:', err);
+      }
+    }
+
+    syncCloudUsers();
+
+    // 3. Realtime subscription: updates when another manager/user creates an account
+    const unsubscribe = subscribeToRealtimeChanges((updatedUsers) => {
+      if (isMounted && updatedUsers && updatedUsers.length > 0) {
+        setUsers(updatedUsers);
+        saveToStorage(STORAGE_KEYS.USERS, updatedUsers);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
-  // Save users when updated
+  // Save users when updated locally
   const syncUsers = useCallback((updatedUsers: User[]) => {
     setUsers(updatedUsers);
     saveToStorage(STORAGE_KEYS.USERS, updatedUsers);
@@ -72,7 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [users, showNotification]);
 
   const switchRole = useCallback((role: UserRole) => {
-    // Find first user with this role
     let target = users.find(u => u.role === role);
     if (!target) {
       target = initialUsers.find(u => u.role === role);
@@ -82,14 +139,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [users, loginAsUser]);
 
-  const loginWithCredentials = useCallback((email: string, pass: string) => {
-    const matched = users.find(u => u.email.trim().toLowerCase() === email.trim().toLowerCase());
+  // Real-time Cloud Authenticator
+  const loginWithCredentials = useCallback(async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const normalized = email.trim().toLowerCase();
+    let matched = users.find(u => u.email.trim().toLowerCase() === normalized);
+
+    // If not found in local memory, query Supabase cloud directly in real-time!
+    if (!matched) {
+      try {
+        const cloudUser = await fetchUserByEmail(normalized);
+        if (cloudUser) {
+          matched = cloudUser;
+          const updated = [cloudUser, ...users.filter(u => u.id !== cloudUser.id)];
+          setUsers(updated);
+          saveToStorage(STORAGE_KEYS.USERS, updated);
+        }
+      } catch (err) {
+        console.warn('Real-time cloud lookup error:', err);
+      }
+    }
+
     if (!matched) {
       return { success: false, error: 'No account registered with this email address.' };
     }
+
+    // Verify Password (with cloud re-check in case password was changed on another machine)
     if (matched.password && matched.password !== pass) {
-      return { success: false, error: 'Invalid password. Please check your credentials.' };
+      try {
+        const freshCloudUser = await fetchUserByEmail(normalized);
+        if (freshCloudUser && freshCloudUser.password === pass) {
+          matched = freshCloudUser;
+          const updated = users.map(u => u.id === freshCloudUser.id ? freshCloudUser : u);
+          setUsers(updated);
+          saveToStorage(STORAGE_KEYS.USERS, updated);
+        } else {
+          return { success: false, error: 'Invalid password. Please check your credentials.' };
+        }
+      } catch {
+        return { success: false, error: 'Invalid password. Please check your credentials.' };
+      }
     }
+
     setCurrentUser(matched);
     setIsAuthenticated(true);
     saveToStorage(STORAGE_KEYS.ACTIVE_USER_ID, matched.id);
@@ -110,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const updated = { ...prev, ...updates };
       const newUsers = users.map(u => u.id === prev.id ? updated : u);
       syncUsers(newUsers);
+      pushUserToSupabase(updated);
       return updated;
     });
     showNotification('Profile Saved', 'Your profile customization has been applied.', 'success');
@@ -133,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(updated);
     const newUsers = users.map(u => u.id === currentUser.id ? updated : u);
     syncUsers(newUsers);
+    pushUserToSupabase(updated);
     showNotification('Security Updated', 'Password changed successfully.', 'success');
     return { success: true };
   }, [currentUser, users, syncUsers, showNotification]);
@@ -152,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(updated);
     const newUsers = users.map(u => u.id === currentUser.id ? updated : u);
     syncUsers(newUsers);
+    pushUserToSupabase(updated);
     showNotification('Account Activated', 'Compulsory password reset completed. Full portal unlocked!', 'success');
     return { success: true };
   }, [currentUser, users, syncUsers, showNotification]);
@@ -161,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const updated = { ...prev, status };
       const newUsers = users.map(u => u.id === prev.id ? updated : u);
       syncUsers(newUsers);
+      pushUserToSupabase(updated);
       return updated;
     });
   }, [users, syncUsers]);
@@ -173,28 +267,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     const updatedUsers = [created, ...users];
     syncUsers(updatedUsers);
-    showNotification('User Onboarded', `${created.name} (${created.email}) added with temporary credentials.`, 'success');
+    // Push immediately to Supabase Cloud
+    pushUserToSupabase(created);
+    showNotification('User Onboarded', `${created.name} (${created.email}) added with temporary credentials. Synced to cloud.`, 'success');
     return created;
   }, [users, syncUsers, showNotification]);
 
   const deleteUser = useCallback((userId: string) => {
     const updatedUsers = users.filter(u => u.id !== userId);
     syncUsers(updatedUsers);
+    deleteUserFromSupabase(userId);
     showNotification('Account Revoked', 'User access has been permanently removed.', 'warning');
   }, [users, syncUsers, showNotification]);
 
   const updateUserRole = useCallback((userId: string, role: UserRole) => {
-    const updatedUsers = users.map(u => u.id === userId ? { ...u, role } : u);
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const updatedUser = { ...target, role };
+    const updatedUsers = users.map(u => u.id === userId ? updatedUser : u);
     syncUsers(updatedUsers);
+    pushUserToSupabase(updatedUser);
     if (currentUser.id === userId) {
       setCurrentUser(prev => ({ ...prev, role }));
     }
-    showNotification('Permissions Updated', `Role updated to ${role.replace('_', ' ').toUpperCase()}`, 'info');
-  }, [users, currentUser.id, syncUsers, showNotification]);
-
-  if (!isLoaded) {
-    return null;
-  }
+  }, [users, currentUser.id, syncUsers]);
 
   return (
     <AuthContext.Provider
