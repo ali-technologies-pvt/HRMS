@@ -7,7 +7,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { LiquidGlassCard } from '../common/LiquidGlassCard';
 import { LiquidButton } from '../common/LiquidButton';
 import { generateTemporaryPassword } from '@/lib/utils';
-import { UserRole } from '@/types';
+import { User, UserRole } from '@/types';
 import {
   UserPlus,
   Copy,
@@ -16,16 +16,19 @@ import {
   Trash2,
   Lock,
   Search,
-  ShieldAlert
+  ShieldAlert,
+  Edit2,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function OnboardingDesk() {
-  const { users, onboardUser, deleteUser, updateUserRole } = useAuth();
+  const { users, onboardUser, updateUser, deleteUser, updateUserRole } = useAuth();
   const { policy, addDepartment } = useAppData();
   const { showNotification } = useNotifications();
 
   const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Form states
@@ -218,15 +221,28 @@ export function OnboardingDesk() {
 
                     {/* Actions */}
                     <td className="py-3 pr-2 text-right">
-                      {user.role !== 'super_admin' && (
+                      <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => deleteUser(user.id)}
-                          title="Revoke access"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-[2px] transition-colors"
+                          onClick={() => setEditingUser(user)}
+                          title="Edit User Details"
+                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-500/10 rounded-[2px] transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
+                        {user.role !== 'super_admin' && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Permanently delete account for "${user.name}"?`)) {
+                                deleteUser(user.id);
+                              }
+                            }}
+                            title="Revoke access"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-[2px] transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -411,6 +427,128 @@ export function OnboardingDesk() {
                   </LiquidButton>
                   <LiquidButton type="submit" variant="primary">
                     Create & Authorize Account
+                  </LiquidButton>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit User Modal */}
+      <AnimatePresence>
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingUser(null)}
+              className="absolute inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-xl"
+            />
+
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 rounded-[4px] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-sky-500/10 text-sky-600 rounded-[2px]">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Edit User Profile
+                    </h3>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Update role, department, designation, and salary
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const uName = (form.elements.namedItem('editName') as HTMLInputElement).value;
+                  const uDept = (form.elements.namedItem('editDept') as HTMLSelectElement).value;
+                  const uDesig = (form.elements.namedItem('editDesig') as HTMLInputElement).value;
+                  const uSalary = Number((form.elements.namedItem('editSalary') as HTMLInputElement).value);
+
+                  updateUser(editingUser.id, {
+                    name: uName,
+                    department: uDept,
+                    designation: uDesig,
+                    salary: uSalary
+                  });
+                  setEditingUser(null);
+                }}
+                className="space-y-3.5 text-xs font-mono"
+              >
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    name="editName"
+                    required
+                    defaultValue={editingUser.name}
+                    className="w-full glass-input px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Department</label>
+                    <select
+                      name="editDept"
+                      defaultValue={editingUser.department || policy.departments?.[0]}
+                      className="w-full glass-input px-2.5 py-2 text-xs"
+                    >
+                      {policy.departments?.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Designation</label>
+                    <input
+                      type="text"
+                      name="editDesig"
+                      required
+                      defaultValue={editingUser.designation}
+                      className="w-full glass-input px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Monthly Salary ($)</label>
+                  <input
+                    type="number"
+                    name="editSalary"
+                    required
+                    defaultValue={editingUser.salary}
+                    className="w-full glass-input px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-white/10">
+                  <LiquidButton type="button" variant="ghost" onClick={() => setEditingUser(null)}>
+                    Cancel
+                  </LiquidButton>
+                  <LiquidButton type="submit" variant="primary">
+                    Save Changes
                   </LiquidButton>
                 </div>
               </form>

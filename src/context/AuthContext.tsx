@@ -27,6 +27,7 @@ interface AuthContextType {
   completeMandatoryPasswordChange: (newPass: string) => { success: boolean; error?: string };
   updateUserStatus: (status: UserStatus) => void;
   onboardUser: (newUser: Omit<User, 'id'>) => User;
+  updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
   updateUserRole: (userId: string, role: UserRole) => void;
 }
@@ -269,15 +270,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncUsers(updatedUsers);
     // Push immediately to Supabase Cloud
     pushUserToSupabase(created);
-    showNotification('User Onboarded', `${created.name} (${created.email}) added with temporary credentials. Synced to cloud.`, 'success');
     return created;
   }, [users, syncUsers, showNotification]);
 
+  const updateUser = useCallback((userId: string, updates: Partial<User>) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const updatedUser = { ...target, ...updates };
+    const updatedUsers = users.map(u => u.id === userId ? updatedUser : u);
+    syncUsers(updatedUsers);
+    pushUserToSupabase(updatedUser);
+    if (currentUser.id === userId) {
+      setCurrentUser(prev => ({ ...prev, ...updates }));
+    }
+    showNotification('Profile Updated', `${updatedUser.name}'s details saved and synced.`, 'success');
+  }, [users, currentUser.id, syncUsers, showNotification]);
+
   const deleteUser = useCallback((userId: string) => {
+    const target = users.find(u => u.id === userId);
     const updatedUsers = users.filter(u => u.id !== userId);
     syncUsers(updatedUsers);
     deleteUserFromSupabase(userId);
-    showNotification('Account Revoked', 'User access has been permanently removed.', 'warning');
+    showNotification('Account Revoked', `${target?.name || 'User'} access has been permanently deleted.`, 'warning');
   }, [users, syncUsers, showNotification]);
 
   const updateUserRole = useCallback((userId: string, role: UserRole) => {
@@ -307,6 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         completeMandatoryPasswordChange,
         updateUserStatus,
         onboardUser,
+        updateUser,
         deleteUser,
         updateUserRole
       }}

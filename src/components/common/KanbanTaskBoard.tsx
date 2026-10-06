@@ -116,7 +116,7 @@ const PRESET_CATEGORIES = [
 
 export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
   const { users, currentUser } = useAuth();
-  const { tasks, projects, addTask, updateTaskStatus, toggleTaskTimer, addProject, attendance, reports } = useAppData();
+  const { tasks, projects, addTask, updateTask, deleteTask, updateTaskStatus, toggleTaskTimer, addProject, attendance, reports } = useAppData();
   const { showNotification } = useNotifications();
 
   // Search & Filter state
@@ -923,6 +923,23 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                                   >
                                     <span>Done 🎉</span>
                                     {t.status === 'completed' && <Check className="w-3 h-3 text-emerald-500" />}
+                                  </button>
+
+                                  <div className="border-t border-slate-100 dark:border-white/5 my-1" />
+
+                                  {/* Delete Task Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuOpenTaskId(null);
+                                      if (window.confirm(`Are you sure you want to delete task "${t.title}"?`)) {
+                                        deleteTask(t.id);
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-1.5 font-bold"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Delete Task</span>
                                   </button>
                                 </motion.div>
                               )}

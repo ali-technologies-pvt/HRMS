@@ -49,11 +49,14 @@ interface AppDataContextType {
     status?: 'active' | 'completed' | 'on_hold' | 'withdrawn';
   }) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
   withdrawProject: (id: string) => void;
   reactivateProject: (id: string) => void;
 
   // Task operations
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'timerActive' | 'loggedHours'>) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  deleteTask: (taskId: string) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   toggleTaskTimer: (taskId: string) => void;
   getTasksForUser: (userId: string) => Task[];
@@ -341,6 +344,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     showNotification('Project Updated', 'Project configuration modified.', 'info');
   }, [projects, showNotification]);
 
+  const deleteProject = useCallback((id: string) => {
+    const target = projects.find(p => p.id === id);
+    const updated = projects.filter(p => p.id !== id);
+    syncData(STORAGE_KEYS.PROJECTS, updated, setProjects);
+    showNotification('Project Deleted', `Project "${target?.name || ''}" permanently removed.`, 'warning');
+  }, [projects, showNotification]);
+
   const withdrawProject = useCallback((id: string) => {
     const target = projects.find(p => p.id === id);
     const updated = projects.map(p => p.id === id ? { ...p, status: 'withdrawn' as const } : p);
@@ -379,6 +389,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     syncData(STORAGE_KEYS.TASKS, updated, setTasks);
     showNotification('Task Assigned', `Task "${newTask.title}" allocated to ${newTask.assignedToName}`, 'success');
   }, [users, projects, currentUser.name, tasks, showNotification]);
+
+  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+    const updated = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
+    syncData(STORAGE_KEYS.TASKS, updated, setTasks);
+    showNotification('Task Updated', 'Task details modified and saved.', 'info');
+  }, [tasks, showNotification]);
+
+  const deleteTask = useCallback((taskId: string) => {
+    const target = tasks.find(t => t.id === taskId);
+    const updated = tasks.filter(t => t.id !== taskId);
+    syncData(STORAGE_KEYS.TASKS, updated, setTasks);
+    showNotification('Task Deleted', `Task "${target?.title || ''}" was removed.`, 'warning');
+  }, [tasks, showNotification]);
 
   const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
     const targetTask = tasks.find(t => t.id === taskId);
@@ -913,9 +936,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         policy,
         addProject,
         updateProject,
+        deleteProject,
         withdrawProject,
         reactivateProject,
         addTask,
+        updateTask,
+        deleteTask,
         updateTaskStatus,
         toggleTaskTimer,
         getTasksForUser,

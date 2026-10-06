@@ -196,6 +196,8 @@ export function ManagerDashboard() {
     getUserTodayAttendance,
     updateCompanyPolicy,
     addProject,
+    updateProject,
+    deleteProject,
     withdrawProject,
     reactivateProject,
     reviewRequest,
@@ -1169,11 +1171,25 @@ export function ManagerDashboard() {
                             <button
                               type="button"
                               onClick={() => withdrawProject(proj.id)}
-                              className="px-2 py-1 text-[10px] font-mono font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800 rounded-[2px]"
+                              className="px-2 py-1 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-[2px]"
                             >
                               Withdraw
                             </button>
                           )}
+
+                          {/* Delete Project Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to permanently delete project "${proj.name}"?`)) {
+                                deleteProject(proj.id);
+                              }
+                            }}
+                            title="Delete Project Permanently"
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-[2px] transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
