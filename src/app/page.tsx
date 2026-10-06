@@ -42,6 +42,7 @@ import { LoginPage } from '@/components/auth/LoginPage';
 // Chat Components & Context
 import { ChatProvider } from '@/context/ChatContext';
 import { ChatDesk } from '@/components/chat/ChatDesk';
+import { FloatingChatWidget } from '@/components/chat/FloatingChatWidget';
 
 function HRMSPortalContent() {
   const { currentUser, isAuthenticated } = useAuth();
@@ -155,6 +156,9 @@ function HRMSPortalContent() {
 
       {/* First-Login Daily Attendance Prompt Popup */}
       <DailyAttendancePopup />
+
+      {/* Global Real-Time Floating Live Chat Widget */}
+      <FloatingChatWidget />
     </div>
   );
 }

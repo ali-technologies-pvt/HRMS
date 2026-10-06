@@ -44,7 +44,6 @@ import { AttendanceRecord, Project, RequestItem } from '@/types';
 import { generateTemporaryPassword } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ExecutiveDribbbleDashboard } from './ExecutiveDribbbleDashboard';
 
 // ==========================================
 // 1. APPLE-STYLE MINIMAL ANIMATED SVGs
@@ -281,9 +280,6 @@ export function ManagerDashboard() {
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
   }, []);
-
-  // View mode: 'clean_studio' (Dribbble/Modern UI) vs 'detailed_console'
-  const [dashboardViewMode, setDashboardViewMode] = useState<'clean_studio' | 'detailed_console'>('clean_studio');
 
   // Manager's own attendance
   const todayStr = new Date().toISOString().split('T')[0];
@@ -679,68 +675,6 @@ export function ManagerDashboard() {
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
       className="space-y-6"
     >
-      {/* ======================================================== */}
-      {/* 0. VIEW MODE SWITCHER (Studio Clean UI vs Detailed Console) */}
-      {/* ======================================================== */}
-      <div className="flex items-center justify-between pb-1">
-        <div className="flex items-center gap-1.5 p-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[20px] border border-slate-200/80 dark:border-white/10 w-fit shadow-sm">
-          <button
-            type="button"
-            onClick={() => setDashboardViewMode('clean_studio')}
-            className={`px-4 py-2 rounded-[16px] text-xs font-sans font-bold transition-all flex items-center gap-1.5 ${
-              dashboardViewMode === 'clean_studio'
-                ? 'bg-[#2c2d96] text-white shadow-md shadow-[#2c2d96]/30'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Studio Clean View</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setDashboardViewMode('detailed_console')}
-            className={`px-4 py-2 rounded-[16px] text-xs font-sans font-bold transition-all flex items-center gap-1.5 ${
-              dashboardViewMode === 'detailed_console'
-                ? 'bg-[#2c2d96] text-white shadow-md shadow-[#2c2d96]/30'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Detailed Console</span>
-          </button>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-400/25 rounded-full text-[10px] font-mono font-bold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            SYSTEM LIVE
-          </span>
-        </div>
-      </div>
-
-      {dashboardViewMode === 'clean_studio' ? (
-        <ExecutiveDribbbleDashboard
-          currentUser={currentUser}
-          policy={policy}
-          projects={projects}
-          tasks={tasks}
-          teamUsers={teamUsers}
-          onlineCount={onlineCount}
-          pendingRequests={pendingRequests}
-          onOpenOnboardModal={handleOpenOnboardModal}
-          onOpenDepartmentsModal={() => setShowDepartmentsModal(true)}
-          onOpenCreateProjectModal={() => setShowCreateProjectModal(true)}
-          onOpenClientReportModal={() => {
-            if (activeProjects.length > 0) {
-              setSelectedReportProjectId(activeProjects[0].id);
-              setShowClientReportModal(true);
-            } else {
-              showNotification('No Projects Found', 'Please create a client project first.', 'warning');
-            }
-          }}
-        />
-      ) : (
-        <>
           {/* ======================================================== */}
           {/* 1. WELCOME BANNER & EXECUTIVE HEADER                     */}
           {/* ======================================================== */}
@@ -948,8 +882,6 @@ export function ManagerDashboard() {
           </div>
         </motion.div>
       </div>
-    </>
-  )}
 
       {/* ======================================================== */}
       {/* 3. MANAGER ATTENDANCE & OFFICE TIMINGS ROW              */}
