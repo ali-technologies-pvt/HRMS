@@ -109,6 +109,8 @@ interface AppDataContextType {
 
   // Company Settings & Policies
   updateCompanyPolicy: (updates: Partial<CompanyPolicy>) => void;
+  addDepartment: (deptName: string) => boolean;
+  deleteDepartment: (deptName: string) => void;
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
@@ -135,10 +137,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setAttendance(loadFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, initialAttendance));
     setAnnouncements(loadFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, initialAnnouncements));
     const loadedPolicy = loadFromStorage<CompanyPolicy>(STORAGE_KEYS.POLICY, initialCompanyPolicy);
-    if (loadedPolicy && (loadedPolicy.officeStartTime === '09:00' || !loadedPolicy.officeStartTime)) {
-      loadedPolicy.officeStartTime = '09:30';
-      loadedPolicy.officeEndTime = '18:00';
-      loadedPolicy.gracePeriodMinutes = 15;
+    if (loadedPolicy) {
+      if (loadedPolicy.officeStartTime === '09:00' || !loadedPolicy.officeStartTime) {
+        loadedPolicy.officeStartTime = '09:30';
+        loadedPolicy.officeEndTime = '18:00';
+        loadedPolicy.gracePeriodMinutes = 15;
+      }
+      // Clear legacy hardcoded departments so Manager generates fresh departments
+      const LEGACY_DEFAULT_DEPTS = [
+        'Executive Administration',
+        'Engineering',
+        'Product Design',
+        'Quality Assurance',
+        'Human Resources',
+        'Operations & HR',
+        'Sales & Growth'
+      ];
+      if (loadedPolicy.departments && Array.isArray(loadedPolicy.departments)) {
+        const isLegacyDefault = loadedPolicy.departments.length === LEGACY_DEFAULT_DEPTS.length &&
+          loadedPolicy.departments.every((d: string) => LEGACY_DEFAULT_DEPTS.includes(d));
+        if (isLegacyDefault) {
+          loadedPolicy.departments = [];
+        }
+      } else {
+        loadedPolicy.departments = [];
+      }
       saveToStorage(STORAGE_KEYS.POLICY, loadedPolicy);
     }
     setPolicy(loadedPolicy);
@@ -453,10 +476,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // EOD Reports
   const generateEODPreview = useCallback((userId: string) => {
+    const todayStr = new Date().toISOString().split('T')[0];
     const userTasks = tasks.filter(t => t.assignedToId === userId);
-    const completedTasks = userTasks.filter(t => t.status === 'completed').map(t => `${t.title} (${t.projectName || 'General'})`);
-    const inProgressTasks = userTasks.filter(t => t.status === 'in_progress').map(t => `${t.title} [Active: ${t.loggedHours}h logged]`);
-    const pendingTasks = userTasks.filter(t => t.status === 'pending' || t.status === 'blocked').map(t => `${t.title} (Due: ${t.deadline})`);
+
+    const completedTasks = userTasks
+      .filter(t => t.status === 'completed' && (t.completedAt?.startsWith(todayStr) || t.createdAt?.startsWith(todayStr) || !t.completedAt))
+      .map(t => `${t.title} (${t.projectName || 'General'}) [Completed]`);
+
+    const inProgressTasks = userTasks
+      .filter(t => t.status === 'in_progress')
+      .map(t => `${t.title} (${t.projectName || 'General'}) [In Progress: ${t.loggedHours || 0}h logged]`);
+
+    const pendingTasks = userTasks
+      .filter(t => t.status === 'pending' || t.status === 'blocked' || t.status === 'needs_review')
+      .map(t => `${t.title} (${t.projectName || 'General'}) [Pending: Due ${t.deadline || 'Today'}]`);
 
     return {
       completedTasks,
@@ -837,11 +870,34 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return payslips.filter(p => p.userId === userId);
   }, [payslips]);
 
-  // Policy
+  // Policy & Departments
   const updateCompanyPolicy = useCallback((updates: Partial<CompanyPolicy>) => {
     const updated = { ...policy, ...updates };
     syncData(STORAGE_KEYS.POLICY, updated, setPolicy);
     showNotification('Policies Updated', 'Office timings and grace periods updated successfully.', 'success');
+  }, [policy, showNotification]);
+
+  const addDepartment = useCallback((deptName: string): boolean => {
+    const trimmed = deptName.trim();
+    if (!trimmed) return false;
+    const currentDepts = policy.departments || [];
+    if (currentDepts.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
+      showNotification('Department Exists', `Department "${trimmed}" is already generated.`, 'warning');
+      return false;
+    }
+    const updatedDepts = [...currentDepts, trimmed];
+    const updatedPolicy = { ...policy, departments: updatedDepts };
+    syncData(STORAGE_KEYS.POLICY, updatedPolicy, setPolicy);
+    showNotification('Department Created', `Department "${trimmed}" generated successfully.`, 'success');
+    return true;
+  }, [policy, showNotification]);
+
+  const deleteDepartment = useCallback((deptName: string) => {
+    const currentDepts = policy.departments || [];
+    const updatedDepts = currentDepts.filter(d => d !== deptName);
+    const updatedPolicy = { ...policy, departments: updatedDepts };
+    syncData(STORAGE_KEYS.POLICY, updatedPolicy, setPolicy);
+    showNotification('Department Removed', `Department "${deptName}" was deleted.`, 'info');
   }, [policy, showNotification]);
 
   return (
@@ -880,7 +936,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         deleteAnnouncement,
         generateMonthlyPayroll,
         getPayslipsForUser,
-        updateCompanyPolicy
+        updateCompanyPolicy,
+        addDepartment,
+        deleteDepartment
       }}
     >
       {children}

@@ -25,20 +25,46 @@ export function EODReportModal({ isOpen, onClose }: EODReportModalProps) {
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [newCompletedInput, setNewCompletedInput] = useState('');
+  const [newInProgressInput, setNewInProgressInput] = useState('');
+  const [newPendingInput, setNewPendingInput] = useState('');
+
   // Auto-fetch today's tasks when opened
   useEffect(() => {
     if (isOpen && currentUser) {
       const preview = generateEODPreview(currentUser.id);
-      setCompletedTasks(preview.completedTasks.length > 0 ? preview.completedTasks : ['No completed tasks logged today']);
-      setInProgressTasks(preview.inProgressTasks.length > 0 ? preview.inProgressTasks : ['No active tasks carried forward']);
-      setPendingTasks(preview.pendingTasks.length > 0 ? preview.pendingTasks : ['No pending tasks queued']);
+      setCompletedTasks(preview.completedTasks);
+      setInProgressTasks(preview.inProgressTasks);
+      setPendingTasks(preview.pendingTasks);
       setBlockers('');
       setTomorrowPlan('Resume active tasks and advance planned project milestones.');
       setAdditionalNotes('');
+      setNewCompletedInput('');
+      setNewInProgressInput('');
+      setNewPendingInput('');
     }
   }, [isOpen, currentUser, generateEODPreview]);
 
   if (!isOpen) return null;
+
+  const addCustomTask = (type: 'completed' | 'inProgress' | 'pending') => {
+    if (type === 'completed' && newCompletedInput.trim()) {
+      setCompletedTasks(prev => [...prev, newCompletedInput.trim()]);
+      setNewCompletedInput('');
+    } else if (type === 'inProgress' && newInProgressInput.trim()) {
+      setInProgressTasks(prev => [...prev, newInProgressInput.trim()]);
+      setNewInProgressInput('');
+    } else if (type === 'pending' && newPendingInput.trim()) {
+      setPendingTasks(prev => [...prev, newPendingInput.trim()]);
+      setNewPendingInput('');
+    }
+  };
+
+  const removeTaskItem = (type: 'completed' | 'inProgress' | 'pending', index: number) => {
+    if (type === 'completed') setCompletedTasks(prev => prev.filter((_, i) => i !== index));
+    if (type === 'inProgress') setInProgressTasks(prev => prev.filter((_, i) => i !== index));
+    if (type === 'pending') setPendingTasks(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +76,9 @@ export function EODReportModal({ isOpen, onClose }: EODReportModalProps) {
       userRole: currentUser.role,
       department: currentUser.department,
       date: new Date().toISOString().split('T')[0],
-      completedTasks,
-      inProgressTasks,
-      pendingTasks,
+      completedTasks: completedTasks.length > 0 ? completedTasks : ['No completed tasks logged today'],
+      inProgressTasks: inProgressTasks.length > 0 ? inProgressTasks : ['No active tasks in progress'],
+      pendingTasks: pendingTasks.length > 0 ? pendingTasks : ['No pending tasks remaining'],
       blockers: blockers || 'None reported.',
       tomorrowPlan,
       additionalNotes,
@@ -99,10 +125,10 @@ export function EODReportModal({ isOpen, onClose }: EODReportModalProps) {
               <div>
                 <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-sky-600 dark:text-cyan-400" />
-                  Automated 1-Click Generation
+                  Daily Performance Dispatch
                 </span>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-wide">
-                  Day-End (EOD) Daily Status Report
+                  End of Day (EOD) Daily Status Report
                 </h3>
               </div>
             </div>
@@ -116,50 +142,127 @@ export function EODReportModal({ isOpen, onClose }: EODReportModalProps) {
           </div>
 
           <p className="text-xs text-slate-600 dark:text-slate-300 mb-4 leading-relaxed font-medium">
-            The system has automatically gathered all your completed, in-progress, and pending tasks for today.
-            Review the bulleted draft below, customize your blockers and tomorrow’s objectives, then dispatch directly to your manager.
+            Today's executed tasks have been automatically loaded below into Completed, In-Progress, and Pending categories. You can review them, add any extra work done, provide your additional notes, and submit directly to your manager.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Auto-Fetched Tasks Preview */}
-            <div className="space-y-3 p-4 bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[3px]">
+            {/* Auto-Fetched Tasks Preview with Custom Additions */}
+            <div className="space-y-3.5 p-4 bg-black/[0.02] dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[3px]">
               {/* Completed Tasks */}
               <div>
-                <span className="text-[11px] font-mono uppercase text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5 mb-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Auto-Fetched Completed Tasks:
-                </span>
-                <ul className="pl-4 space-y-1">
-                  {completedTasks.map((t, i) => (
-                    <li key={i} className="text-xs text-slate-800 dark:text-slate-200 list-disc font-sans font-medium">{t}</li>
-                  ))}
-                </ul>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-mono uppercase text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    1. Completed Tasks Today ({completedTasks.length})
+                  </span>
+                </div>
+                {completedTasks.length > 0 ? (
+                  <ul className="space-y-1 mb-2">
+                    {completedTasks.map((t, i) => (
+                      <li key={i} className="text-xs text-slate-800 dark:text-slate-200 font-sans font-medium flex items-center justify-between p-1.5 bg-emerald-500/5 border border-emerald-500/20 rounded-[2px]">
+                        <span>• {t}</span>
+                        <button type="button" onClick={() => removeTaskItem('completed', i)} className="text-slate-400 hover:text-rose-500 text-xs px-1">✕</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic mb-2">No completed tasks logged for today.</p>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCompletedInput}
+                    onChange={(e) => setNewCompletedInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTask('completed'); } }}
+                    placeholder="+ Add custom completed task..."
+                    className="flex-1 glass-input px-2.5 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addCustomTask('completed')}
+                    className="px-2.5 py-1 text-xs font-mono bg-emerald-600 text-white rounded-[2px] hover:bg-emerald-700 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
 
               {/* In Progress Tasks */}
-              <div>
-                <span className="text-[11px] font-mono uppercase text-sky-700 dark:text-cyan-400 font-bold flex items-center gap-1.5 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-sky-600" />
-                  Auto-Fetched Working / In-Progress Tasks:
-                </span>
-                <ul className="pl-4 space-y-1">
-                  {inProgressTasks.map((t, i) => (
-                    <li key={i} className="text-xs text-slate-800 dark:text-slate-200 list-disc font-sans font-medium">{t}</li>
-                  ))}
-                </ul>
+              <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-mono uppercase text-sky-700 dark:text-cyan-400 font-bold flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-sky-600" />
+                    2. In-Progress Tasks / Active Sprint ({inProgressTasks.length})
+                  </span>
+                </div>
+                {inProgressTasks.length > 0 ? (
+                  <ul className="space-y-1 mb-2">
+                    {inProgressTasks.map((t, i) => (
+                      <li key={i} className="text-xs text-slate-800 dark:text-slate-200 font-sans font-medium flex items-center justify-between p-1.5 bg-sky-500/5 border border-sky-500/20 rounded-[2px]">
+                        <span>• {t}</span>
+                        <button type="button" onClick={() => removeTaskItem('inProgress', i)} className="text-slate-400 hover:text-rose-500 text-xs px-1">✕</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic mb-2">No active in-progress tasks.</p>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newInProgressInput}
+                    onChange={(e) => setNewInProgressInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTask('inProgress'); } }}
+                    placeholder="+ Add custom in-progress task..."
+                    className="flex-1 glass-input px-2.5 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addCustomTask('inProgress')}
+                    className="px-2.5 py-1 text-xs font-mono bg-sky-600 text-white rounded-[2px] hover:bg-sky-700 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
 
               {/* Pending Rollovers */}
-              <div>
-                <span className="text-[11px] font-mono uppercase text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1.5 mb-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  Auto-Fetched Pending / Backlog Rollovers:
-                </span>
-                <ul className="pl-4 space-y-1">
-                  {pendingTasks.map((t, i) => (
-                    <li key={i} className="text-xs text-slate-800 dark:text-slate-200 list-disc font-sans font-medium">{t}</li>
-                  ))}
-                </ul>
+              <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-mono uppercase text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    3. Pending / Rollover Tasks ({pendingTasks.length})
+                  </span>
+                </div>
+                {pendingTasks.length > 0 ? (
+                  <ul className="space-y-1 mb-2">
+                    {pendingTasks.map((t, i) => (
+                      <li key={i} className="text-xs text-slate-800 dark:text-slate-200 font-sans font-medium flex items-center justify-between p-1.5 bg-amber-500/5 border border-amber-500/20 rounded-[2px]">
+                        <span>• {t}</span>
+                        <button type="button" onClick={() => removeTaskItem('pending', i)} className="text-slate-400 hover:text-rose-500 text-xs px-1">✕</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic mb-2">No pending tasks in queue.</p>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPendingInput}
+                    onChange={(e) => setNewPendingInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTask('pending'); } }}
+                    placeholder="+ Add custom pending task..."
+                    className="flex-1 glass-input px-2.5 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addCustomTask('pending')}
+                    className="px-2.5 py-1 text-xs font-mono bg-amber-600 text-white rounded-[2px] hover:bg-amber-700 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -192,17 +295,17 @@ export function EODReportModal({ isOpen, onClose }: EODReportModalProps) {
               />
             </div>
 
-            {/* Additional Notes */}
+            {/* Additional Notes & Special Status Addition */}
             <div>
-              <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
-                Additional Notes or Remarks for Manager
+              <label className="block text-[11px] font-mono uppercase text-indigo-700 dark:text-indigo-400 mb-1 font-bold">
+                Additional Notes & Custom Status Remarks (Optional)
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 value={additionalNotes}
                 onChange={(e) => setAdditionalNotes(e.target.value)}
-                placeholder="e.g. Requesting 10m morning standup sync..."
-                className="w-full glass-input px-3 py-2 text-xs"
+                placeholder="Write any extra work notes, special status additions, or comments you would like to report to your manager..."
+                className="w-full glass-input px-3 py-2 text-xs resize-none leading-relaxed"
               />
             </div>
 

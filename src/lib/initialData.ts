@@ -45,15 +45,7 @@ export const initialCompanyPolicy: CompanyPolicy = {
   officeEndTime: '18:00',
   gracePeriodMinutes: 15,
   workDaysPerWeek: 5,
-  departments: [
-    'Executive Administration',
-    'Engineering',
-    'Product Design',
-    'Quality Assurance',
-    'Human Resources',
-    'Operations & HR',
-    'Sales & Growth'
-  ],
+  departments: [],
   designations: [
     'Chief Technology & Ops Officer / Super Admin',
     'VP of Engineering & Team Lead',

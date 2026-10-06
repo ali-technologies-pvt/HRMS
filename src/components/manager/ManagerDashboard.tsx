@@ -201,7 +201,9 @@ export function ManagerDashboard() {
     updateAttendanceRecord,
     manualRecordAttendance,
     bulkBackfillAttendance,
-    deleteAttendanceRecord
+    deleteAttendanceRecord,
+    addDepartment,
+    deleteDepartment
   } = useAppData();
   const { showNotification } = useNotifications();
 
@@ -244,12 +246,16 @@ export function ManagerDashboard() {
   const [newClientName, setNewClientName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
 
+  // Department Management Modal state
+  const [showDepartmentsModal, setShowDepartmentsModal] = useState(false);
+  const [newDeptInput, setNewDeptInput] = useState('');
+
   // Employee Onboard Modal state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [empName, setEmpName] = useState('');
   const [empEmail, setEmpEmail] = useState('');
   const [empDesignation, setEmpDesignation] = useState('');
-  const [empDepartment, setEmpDepartment] = useState(currentUser.department || 'Engineering');
+  const [empDepartment, setEmpDepartment] = useState(policy.departments?.[0] || currentUser.department || '');
   const [empSalary, setEmpSalary] = useState(5500);
   const [empTempPassword, setEmpTempPassword] = useState('');
   const [createdEmpResult, setCreatedEmpResult] = useState<{ email: string; pass: string; name: string } | null>(null);
@@ -265,6 +271,14 @@ export function ManagerDashboard() {
   const [editClockOut, setEditClockOut] = useState('');
   const [editStatus, setEditStatus] = useState<AttendanceRecord['status']>('present');
   const [editRemarks, setEditRemarks] = useState('');
+
+  // Time-aware greeting
+  const greetingTime = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
 
   // Manager's own attendance
   const todayStr = new Date().toISOString().split('T')[0];
@@ -364,13 +378,32 @@ export function ManagerDashboard() {
     showNotification('Project Created', `"${newProjectName}" activated for client ${newClientName}.`, 'success');
   };
 
+  // Handle Department Creation & Deletion
+  const handleAddDepartment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newDeptInput.trim();
+    if (!trimmed) return;
+    const added = addDepartment(trimmed);
+    if (added) {
+      showNotification('Department Created', `Department "${trimmed}" added successfully.`, 'success');
+      setNewDeptInput('');
+    } else {
+      showNotification('Department Exists', `Department "${trimmed}" already exists in the system.`, 'warning');
+    }
+  };
+
+  const handleDeleteDepartment = (deptName: string) => {
+    deleteDepartment(deptName);
+    showNotification('Department Removed', `Department "${deptName}" was removed.`, 'info');
+  };
+
   // Handle Employee Onboarding by Manager
   const handleOpenOnboardModal = () => {
     setEmpTempPassword(generateTemporaryPassword());
     setEmpName('');
     setEmpEmail('');
     setEmpDesignation('');
-    setEmpDepartment(currentUser.department || 'Engineering');
+    setEmpDepartment(policy.departments?.[0] || currentUser.department || '');
     setEmpSalary(5500);
     setCreatedEmpResult(null);
     setCopiedCreds(false);
@@ -382,6 +415,10 @@ export function ManagerDashboard() {
     if (!empName.trim() || !empEmail.trim()) {
       showNotification('Missing Information', 'Please provide employee name and work email.', 'warning');
       return;
+    }
+
+    if (empDepartment.trim() && !policy.departments?.includes(empDepartment.trim())) {
+      addDepartment(empDepartment.trim());
     }
 
     onboardUser({
@@ -631,65 +668,95 @@ export function ManagerDashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      className="space-y-6"
+    >
       {/* ======================================================== */}
       {/* 1. WELCOME BANNER & EXECUTIVE HEADER                     */}
       {/* ======================================================== */}
-      <div className="p-6 liquid-glass-elevated border border-slate-200/80 dark:border-white/10 rounded-[4px] shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-sky-500/10 dark:bg-cyan-500/15 border border-sky-400/30 text-sky-600 dark:text-cyan-400 rounded-[2px]">
-              <Sparkles className="w-4 h-4" />
-            </span>
-            <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">
-              Executive Management Desk
-            </span>
+      <div className="relative overflow-hidden p-6 lg:p-7 rounded-[4px] liquid-glass-elevated border border-slate-200/90 dark:border-white/10 shadow-sm transition-all duration-300">
+        {/* Subtle ambient gradient mesh in the card corner */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-sky-400/10 via-indigo-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-500/10 dark:bg-cyan-500/15 border border-sky-400/30 text-sky-700 dark:text-cyan-300 rounded-[2px] text-[10px] font-mono font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-sky-500 animate-pulse" />
+                Executive Console
+              </span>
+
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-400/30 text-emerald-700 dark:text-emerald-300 rounded-[2px] text-[10px] font-mono font-semibold">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                Live Shift Active ({policy.officeStartTime} - {policy.officeEndTime})
+              </span>
+            </div>
+
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                {greetingTime}, <span className="bg-gradient-to-r from-sky-600 to-indigo-600 dark:from-sky-400 dark:to-cyan-300 bg-clip-text text-transparent">{currentUser.name}</span>
+              </h1>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                Real-time team presence monitor, deliverable allocation cockpit, and automated attendance policy enforcement.
+              </p>
+            </div>
           </div>
 
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1.5">
-            Good Day, {currentUser.name}
-          </h1>
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <LiquidButton
+              variant="primary"
+              size="md"
+              icon={<UserPlus className="w-4 h-4" />}
+              onClick={handleOpenOnboardModal}
+              className="shadow-[0_4px_16px_rgba(14,165,233,0.3)] hover:shadow-[0_6px_22px_rgba(14,165,233,0.45)]"
+            >
+              + Onboard Employee
+            </LiquidButton>
 
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Monitor live team presence, allocate project deliverables, maintain office punctuality policies, and audit client reports.
-          </p>
-        </div>
+            <LiquidButton
+              variant="glass"
+              size="md"
+              icon={<Building2 className="w-4 h-4 text-sky-500" />}
+              onClick={() => setShowDepartmentsModal(true)}
+              className="hover:border-sky-400/50"
+            >
+              Departments ({policy.departments?.length || 0})
+            </LiquidButton>
 
-        {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <LiquidButton
-            variant="primary"
-            size="md"
-            icon={<UserPlus className="w-4 h-4" />}
-            onClick={handleOpenOnboardModal}
-          >
-            + Onboard Employee
-          </LiquidButton>
+            <LiquidButton
+              variant="glass"
+              size="md"
+              icon={<Plus className="w-4 h-4 text-indigo-500" />}
+              onClick={() => setShowCreateProjectModal(true)}
+              className="hover:border-indigo-400/50"
+            >
+              + New Project
+            </LiquidButton>
 
-          <LiquidButton
-            variant="glass"
-            size="md"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowCreateProjectModal(true)}
-          >
-            + New Project
-          </LiquidButton>
-
-          <LiquidButton
-            variant="glass"
-            size="md"
-            icon={<FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-            onClick={() => {
-              if (activeProjects.length > 0) {
-                setSelectedReportProjectId(activeProjects[0].id);
-                setShowClientReportModal(true);
-              } else {
-                showNotification('No Projects Found', 'Please create a client project first.', 'warning');
-              }
-            }}
-          >
-            Client Reports (PDF)
-          </LiquidButton>
+            <LiquidButton
+              variant="glass"
+              size="md"
+              icon={<FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+              onClick={() => {
+                if (activeProjects.length > 0) {
+                  setSelectedReportProjectId(activeProjects[0].id);
+                  setShowClientReportModal(true);
+                } else {
+                  showNotification('No Projects Found', 'Please create a client project first.', 'warning');
+                }
+              }}
+              className="hover:border-emerald-400/50"
+            >
+              Client Reports (PDF)
+            </LiquidButton>
+          </div>
         </div>
       </div>
 
@@ -698,69 +765,121 @@ export function ManagerDashboard() {
       {/* ======================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Active Projects */}
-        <div className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-white/10 rounded-[4px] shadow-sm flex items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
-              Active Client Projects
-            </span>
-            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1">
-              {activeProjects.length}
+        <motion.div
+          whileHover={{ y: -4, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+          className="relative overflow-hidden p-5 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-sky-400/30 dark:border-sky-500/20 hover:border-sky-400/70 rounded-[4px] shadow-sm hover:shadow-[0_12px_28px_rgba(14,165,233,0.12)] transition-all duration-300 group"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                Active Client Projects
+              </span>
+              <div className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5 tracking-tight">
+                {activeProjects.length}
+              </div>
+              <div className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold mt-1">
+                {withdrawnProjects.length > 0 ? `${withdrawnProjects.length} Withdrawn` : 'All in Active Scope'}
+              </div>
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5">
-              {withdrawnProjects.length > 0 ? `${withdrawnProjects.length} Withdrawn` : 'All in Active Scope'}
+            <div className="p-2 bg-sky-500/10 dark:bg-sky-500/15 rounded-[3px] border border-sky-400/20 group-hover:scale-105 transition-transform">
+              <ModernFolderBlueprintSvg />
             </div>
           </div>
-          <ModernFolderBlueprintSvg />
-        </div>
+          {/* Mini Accent Progress Indicator */}
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-sky-400 to-blue-600 h-full rounded-full transition-all duration-700" 
+              style={{ width: `${Math.min(100, Math.max(15, activeProjects.length * 20))}%` }} 
+            />
+          </div>
+        </motion.div>
 
         {/* Card 2: Total Deliverable Tasks */}
-        <div className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-white/10 rounded-[4px] shadow-sm flex items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
-              Deliverable Tasks
-            </span>
-            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1">
-              {tasks.length}
+        <motion.div
+          whileHover={{ y: -4, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+          className="relative overflow-hidden p-5 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-indigo-400/30 dark:border-indigo-500/20 hover:border-indigo-400/70 rounded-[4px] shadow-sm hover:shadow-[0_12px_28px_rgba(99,102,241,0.12)] transition-all duration-300 group"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                Deliverable Tasks
+              </span>
+              <div className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5 tracking-tight">
+                {tasks.length}
+              </div>
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                {completedTasks.length} Completed ({Math.round(completionRate)}%)
+              </div>
             </div>
-            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-              {completedTasks.length} Completed ({Math.round(completionRate)}%)
+            <div className="p-2 bg-indigo-500/10 dark:bg-indigo-500/15 rounded-[3px] border border-indigo-400/20 group-hover:scale-105 transition-transform">
+              <ModernTaskChecklistSvg />
             </div>
           </div>
-          <ModernTaskChecklistSvg />
-        </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full rounded-full transition-all duration-700" 
+              style={{ width: `${Math.round(completionRate)}%` }} 
+            />
+          </div>
+        </motion.div>
 
         {/* Card 3: Team Online & Shift Schedule */}
-        <div className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-white/10 rounded-[4px] shadow-sm flex items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
-              Team Online Today
-            </span>
-            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 flex items-center gap-1.5">
-              <span>{onlineCount}</span>
-              <span className="text-xs text-slate-400 font-normal">/ {teamUsers.length}</span>
+        <motion.div
+          whileHover={{ y: -4, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+          className="relative overflow-hidden p-5 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-emerald-400/30 dark:border-emerald-500/20 hover:border-emerald-400/70 rounded-[4px] shadow-sm hover:shadow-[0_12px_28px_rgba(16,185,129,0.12)] transition-all duration-300 group"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                Team Online Today
+              </span>
+              <div className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5 tracking-tight flex items-center gap-1.5">
+                <span>{onlineCount}</span>
+                <span className="text-sm text-slate-400 font-normal">/ {teamUsers.length}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                Grace Window: {policy.gracePeriodMinutes} mins
+              </div>
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
-              Shift: {policy.officeStartTime} - {policy.officeEndTime}
+            <div className="p-2 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-[3px] border border-emerald-400/20 group-hover:scale-105 transition-transform">
+              <ModernPulseClockSvg />
             </div>
           </div>
-          <ModernPulseClockSvg />
-        </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full transition-all duration-700" 
+              style={{ width: `${teamUsers.length > 0 ? Math.round((onlineCount / teamUsers.length) * 100) : 0}%` }} 
+            />
+          </div>
+        </motion.div>
 
         {/* Card 4: Pending Clearances */}
-        <div className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-white/10 rounded-[4px] shadow-sm flex items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
-              Pending Approvals
-            </span>
-            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1">
-              {pendingRequests.length}
+        <motion.div
+          whileHover={{ y: -4, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+          className="relative overflow-hidden p-5 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border border-amber-400/30 dark:border-amber-500/20 hover:border-amber-400/70 rounded-[4px] shadow-sm hover:shadow-[0_12px_28px_rgba(245,158,11,0.12)] transition-all duration-300 group"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                Pending Approvals
+              </span>
+              <div className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white mt-1.5 tracking-tight">
+                {pendingRequests.length}
+              </div>
+              <div className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-1">
+                {pendingRequests.length === 0 ? 'All Reviewed & Cleared' : 'Action Required for Exit'}
+              </div>
             </div>
-            <div className="text-[10px] text-amber-600 font-semibold mt-0.5">
-              {pendingRequests.length === 0 ? 'All Reviewed & Cleared' : 'Action Required for Exit'}
+            <div className="p-2 bg-amber-500/10 dark:bg-amber-500/15 rounded-[3px] border border-amber-400/20 group-hover:scale-105 transition-transform">
+              <ModernShieldApprovalSvg />
             </div>
           </div>
-          <ModernShieldApprovalSvg />
-        </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-700 ${pendingRequests.length === 0 ? 'bg-emerald-500 w-full' : 'bg-amber-500 w-1/2'}`}
+            />
+          </div>
+        </motion.div>
       </div>
 
       {/* ======================================================== */}
@@ -2232,6 +2351,144 @@ export function ManagerDashboard() {
         )}
       </AnimatePresence>
 
+      {/* MANAGE COMPANY DEPARTMENTS MODAL */}
+      <AnimatePresence>
+        {showDepartmentsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDepartmentsModal(false)}
+              className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-xl"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 15 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+              className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-sky-400/50 dark:border-cyan-500/40 p-6 rounded-[4px] shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between pb-3 border-b border-slate-200/80 dark:border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-sky-500/15 border border-sky-400/40 text-sky-600 dark:text-cyan-400 rounded-[3px]">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Department Management
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-sky-500/10 text-sky-600 dark:text-cyan-400 border border-sky-400/30 rounded">
+                        {policy.departments?.length || 0} TOTAL
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Create, generate, and organize company departments in real-time.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDepartmentsModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Add New Department Form */}
+              <form onSubmit={handleAddDepartment} className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Add New Department
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={newDeptInput}
+                    onChange={(e) => setNewDeptInput(e.target.value)}
+                    placeholder="e.g. Frontend Engineering, Product Design, Marketing..."
+                    className="flex-1 glass-input px-3 py-2 text-xs"
+                  />
+                  <LiquidButton variant="primary" size="sm" type="submit" icon={<Plus className="w-3.5 h-3.5" />}>
+                    Create
+                  </LiquidButton>
+                </div>
+              </form>
+
+              {/* Existing Departments List */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold block">
+                  Active Departments
+                </span>
+
+                {policy.departments && policy.departments.length > 0 ? (
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                    {policy.departments.map((dept) => {
+                      const count = users.filter(u => u.department === dept).length;
+                      return (
+                        <div
+                          key={dept}
+                          className="flex items-center justify-between p-2.5 bg-black/[0.02] dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 rounded-[3px] hover:border-sky-400/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded bg-sky-500/10 text-sky-600 dark:text-cyan-400 flex items-center justify-center font-bold text-xs">
+                              <Building2 className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 dark:text-white">
+                                {dept}
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-500">
+                                {count} {count === 1 ? 'member' : 'members'} assigned
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Remove department "${dept}"? Any assigned employees will retain their current title.`)) {
+                                handleDeleteDepartment(dept);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded transition-colors"
+                            title="Delete Department"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-[3px] space-y-1">
+                    <Building2 className="w-8 h-8 text-slate-400 mx-auto opacity-40 mb-2" />
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      No Custom Departments Created Yet
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Use the input box above to generate your company's departments.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-200/80 dark:border-white/10 flex justify-end">
+                <LiquidButton variant="glass" size="sm" onClick={() => setShowDepartmentsModal(false)}>
+                  Done
+                </LiquidButton>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ONBOARD NEW EMPLOYEE MODAL (Temporary Email & Password) */}
       <AnimatePresence>
         {showOnboardModal && (
@@ -2373,19 +2630,40 @@ export function ManagerDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                        Department
-                      </label>
-                      <select
-                        value={empDepartment}
-                        onChange={(e) => setEmpDepartment(e.target.value)}
-                        className="w-full glass-input px-2.5 py-2 text-xs"
-                      >
-                        <option value="Engineering" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Engineering</option>
-                        <option value="Product Design" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Product Design</option>
-                        <option value="Quality Assurance" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Quality Assurance</option>
-                        <option value="Operations & HR" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Operations & HR</option>
-                      </select>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
+                          Department
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowDepartmentsModal(true)}
+                          className="text-[10px] text-sky-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-mono"
+                        >
+                          + Manage Depts
+                        </button>
+                      </div>
+                      {policy.departments && policy.departments.length > 0 ? (
+                        <select
+                          value={empDepartment}
+                          onChange={(e) => setEmpDepartment(e.target.value)}
+                          className="w-full glass-input px-2.5 py-2 text-xs"
+                        >
+                          {policy.departments.map((dept) => (
+                            <option key={dept} value={dept} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                              {dept}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Engineering, Sales, QA..."
+                          value={empDepartment}
+                          onChange={(e) => setEmpDepartment(e.target.value)}
+                          className="w-full glass-input px-2.5 py-2 text-xs"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -2443,6 +2721,6 @@ export function ManagerDashboard() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

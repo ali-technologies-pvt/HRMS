@@ -218,19 +218,33 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
     }
   }, [eligibleEmployees, mode, currentUser.id, inlineAssigneeId]);
 
-  // STRICT DATA PRIVACY LOGIC:
-  // - In 'employee' mode: tasks are strictly filtered to currentUser.id
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // STRICT DATA PRIVACY LOGIC & NEXT-DAY FOCUS:
+  // - In 'employee' mode:
+  //   Excludes tasks completed on previous days, so the employee only sees:
+  //   (1) Today's newly assigned & active tasks
+  //   (2) Previous days' pending & in-progress rollover tasks
   // - In 'manager' mode: tasks are collective across all team members, with optional filter by employee
   const baseTasks = useMemo(() => {
     if (mode === 'employee') {
-      return tasks.filter(t => t.assignedToId === currentUser.id);
+      const myTasks = tasks.filter(t => t.assignedToId === currentUser.id);
+      return myTasks.filter(t => {
+        if (t.status === 'completed') {
+          const compDate = t.completedAt ? t.completedAt.split('T')[0] : '';
+          const createDate = t.createdAt ? t.createdAt.split('T')[0] : '';
+          return compDate === todayStr || createDate === todayStr;
+        }
+        // All unfinished tasks (pending, in_progress, needs_review) remain visible
+        return true;
+      });
     }
     // Manager mode: collective
     if (selectedEmployeeId !== 'all') {
       return tasks.filter(t => t.assignedToId === selectedEmployeeId);
     }
     return tasks;
-  }, [mode, tasks, currentUser.id, selectedEmployeeId]);
+  }, [mode, tasks, currentUser.id, selectedEmployeeId, todayStr]);
 
   // Apply search query and project filter
   const displayedTasks = useMemo(() => {
@@ -838,12 +852,13 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                       <motion.div
                         key={t.id}
                         layout
-                        initial={{ opacity: 0, y: 8 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`p-3.5 bg-white dark:bg-slate-900/90 rounded-[4px] border transition-all shadow-sm hover:shadow-md ${
+                        whileHover={{ y: -3, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+                        className={`p-3.5 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md rounded-[4px] border transition-all duration-200 shadow-sm hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)] ${
                           isWorking
-                            ? 'border-sky-400 dark:border-cyan-400/60 ring-1 ring-sky-400/20'
-                            : 'border-slate-200/90 dark:border-white/10'
+                            ? 'border-sky-400 dark:border-cyan-400 ring-2 ring-sky-400/25 shadow-[0_0_20px_rgba(14,165,233,0.2)]'
+                            : 'border-slate-200/90 dark:border-white/10 hover:border-sky-400/50'
                         }`}
                       >
                         {/* Card Header: Category Pill & 3-Dots Menu */}

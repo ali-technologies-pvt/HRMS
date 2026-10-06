@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useAppData } from '@/context/AppDataContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { LiquidGlassCard } from '../common/LiquidGlassCard';
 import { LiquidButton } from '../common/LiquidButton';
@@ -21,6 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export function OnboardingDesk() {
   const { users, onboardUser, deleteUser, updateUserRole } = useAuth();
+  const { policy, addDepartment } = useAppData();
   const { showNotification } = useNotifications();
 
   const [showModal, setShowModal] = useState(false);
@@ -30,7 +32,7 @@ export function OnboardingDesk() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('manager');
-  const [department, setDepartment] = useState('Engineering');
+  const [department, setDepartment] = useState(policy.departments?.[0] || 'Executive Leadership');
   const [designation, setDesignation] = useState('Department Manager');
   const [salary, setSalary] = useState(8500);
   const [tempPassword, setTempPassword] = useState(() => generateTemporaryPassword());
@@ -41,6 +43,7 @@ export function OnboardingDesk() {
     setName('');
     setEmail('');
     setRole('manager');
+    setDepartment(policy.departments?.[0] || 'Executive Leadership');
     setDesignation('Engineering Team Lead / Manager');
     setShowModal(true);
   };
@@ -58,6 +61,10 @@ export function OnboardingDesk() {
     if (!name || !email) {
       showNotification('Missing Fields', 'Please specify full name and email.', 'warning');
       return;
+    }
+
+    if (department.trim() && !policy.departments?.includes(department.trim())) {
+      addDepartment(department.trim());
     }
 
     onboardUser({
@@ -313,18 +320,27 @@ export function OnboardingDesk() {
                     <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
                       Department
                     </label>
-                    <select
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full glass-input px-3 py-2 text-sm"
-                    >
-                      <option value="Engineering" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Engineering</option>
-                      <option value="Product Design" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Product Design</option>
-                      <option value="Quality Assurance" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Quality Assurance</option>
-                      <option value="Human Resources" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Human Resources</option>
-                      <option value="Operations & HR" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Operations & HR</option>
-                      <option value="Sales & Growth" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Sales & Growth</option>
-                    </select>
+                    {policy.departments && policy.departments.length > 0 ? (
+                      <select
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        className="w-full glass-input px-3 py-2 text-sm"
+                      >
+                        {policy.departments.map((dept) => (
+                          <option key={dept} value={dept} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        placeholder="e.g. Executive, Engineering, QA..."
+                        className="w-full glass-input px-3 py-2 text-sm"
+                      />
+                    )}
                   </div>
 
                   <div>

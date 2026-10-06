@@ -123,7 +123,7 @@ export function LiveActivityTracker() {
     <div className="space-y-6">
       {/* Top Banner / Metrics Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <LiquidGlassCard glow="cyan" className="p-4">
+        <LiquidGlassCard glow="cyan" interactive className="p-4">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono uppercase mb-2">
             <span>Live Workforce</span>
             <Users className="w-4 h-4 text-sky-600 dark:text-cyan-400" />
@@ -138,7 +138,7 @@ export function LiveActivityTracker() {
           </div>
         </LiquidGlassCard>
 
-        <LiquidGlassCard glow="emerald" className="p-4">
+        <LiquidGlassCard glow="emerald" interactive className="p-4">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono uppercase mb-2">
             <span>Completed Tasks</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -155,7 +155,7 @@ export function LiveActivityTracker() {
           </div>
         </LiquidGlassCard>
 
-        <LiquidGlassCard glow="violet" className="p-4">
+        <LiquidGlassCard glow="violet" interactive className="p-4">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono uppercase mb-2">
             <span>In-Progress Sprints</span>
             <PlayCircle className="w-4 h-4 text-indigo-600 dark:text-violet-400" />
@@ -169,7 +169,7 @@ export function LiveActivityTracker() {
           </div>
         </LiquidGlassCard>
 
-        <LiquidGlassCard glow="amber" className="p-4">
+        <LiquidGlassCard glow="amber" interactive className="p-4">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono uppercase mb-2">
             <span>Pending / Backlog</span>
             <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
