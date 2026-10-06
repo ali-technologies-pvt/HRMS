@@ -94,8 +94,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
 
         if (cloudMessages && cloudMessages.length > 0) {
-          setMessages(cloudMessages);
-          saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, cloudMessages);
+          setMessages(prev => {
+            const map = new Map<string, ChatMessage>();
+            cloudMessages.forEach(m => { if (m?.id) map.set(m.id, m); });
+            prev.forEach(m => { if (m?.id && !map.has(m.id)) map.set(m.id, m); });
+            const merged = Array.from(map.values());
+            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
+            return merged;
+          });
         } else if (loadedMessages.length > 0) {
           pushCollectionToSupabase(STORAGE_KEYS.CHAT_MESSAGES, loadedMessages).catch(console.warn);
         }
@@ -163,21 +169,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // 2. Realtime collections listener for chat groups & bulk messages
     const unsubscribeCollections = subscribeToCollectionChange((key, data) => {
       if (key === STORAGE_KEYS.CHAT_GROUPS && Array.isArray(data)) {
-        setGroups(data);
-        saveToStorage(STORAGE_KEYS.CHAT_GROUPS, data);
+        setGroups(prevGroups => {
+          const map = new Map<string, ChatGroup>();
+          data.forEach((g: ChatGroup) => map.set(g.id, g));
+          prevGroups.forEach(g => { if (!map.has(g.id)) map.set(g.id, g); });
+          const merged = Array.from(map.values());
+          saveToStorage(STORAGE_KEYS.CHAT_GROUPS, merged);
+          return merged;
+        });
       }
       if (key === STORAGE_KEYS.CHAT_MESSAGES && Array.isArray(data)) {
         setMessages(prev => {
-          if (data.length !== prev.length || (data.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, data);
-            return data;
+          const map = new Map<string, ChatMessage>();
+          data.forEach((m: ChatMessage) => { if (m?.id) map.set(m.id, m); });
+          // Preserve any local optimistic messages not yet reflected in incoming data
+          prev.forEach(m => {
+            if (m?.id && !map.has(m.id)) {
+              map.set(m.id, m);
+            }
+          });
+          const merged = Array.from(map.values());
+          if (merged.length !== prev.length || (merged.length > 0 && merged[merged.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
+            return merged;
           }
           return prev;
         });
       }
     });
 
-    // 3. High-frequency background sync polling (every 2.5 seconds)
+    // 3. High-frequency background sync polling (every 3 seconds)
     const pollInterval = setInterval(async () => {
       try {
         const [cloudMessages, cloudGroups] = await Promise.all([
@@ -187,19 +208,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (cloudMessages && Array.isArray(cloudMessages)) {
           setMessages(prev => {
-            if (cloudMessages.length > prev.length || (cloudMessages.length > 0 && cloudMessages[cloudMessages.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-              saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, cloudMessages);
-              return cloudMessages;
+            const map = new Map<string, ChatMessage>();
+            cloudMessages.forEach(m => { if (m?.id) map.set(m.id, m); });
+            // ALWAYS keep optimistic/locally sent messages
+            prev.forEach(m => {
+              if (m?.id && !map.has(m.id)) {
+                map.set(m.id, m);
+              }
+            });
+            const merged = Array.from(map.values());
+            if (merged.length !== prev.length) {
+              saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
+              return merged;
             }
             return prev;
           });
         }
 
         if (cloudGroups && Array.isArray(cloudGroups)) {
-          setGroups(prev => cloudGroups.length !== prev.length ? (saveToStorage(STORAGE_KEYS.CHAT_GROUPS, cloudGroups), cloudGroups) : prev);
+          setGroups(prev => {
+            const map = new Map<string, ChatGroup>();
+            cloudGroups.forEach(g => { if (g?.id) map.set(g.id, g); });
+            prev.forEach(g => { if (g?.id && !map.has(g.id)) map.set(g.id, g); });
+            const merged = Array.from(map.values());
+            if (merged.length !== prev.length) {
+              saveToStorage(STORAGE_KEYS.CHAT_GROUPS, merged);
+              return merged;
+            }
+            return prev;
+          });
         }
       } catch {}
-    }, 2500);
+    }, 3000);
 
     return () => {
       unsubscribeChatMsg();
