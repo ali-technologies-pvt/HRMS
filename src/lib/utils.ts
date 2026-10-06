@@ -27,9 +27,56 @@ export function formatDuration(seconds: number): string {
 export function formatTimeHM(dateString: string): string {
   try {
     const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch {
     return dateString;
+  }
+}
+
+export function formatChatTimestamp(timestamp?: string, createdAt?: string): string {
+  const parseVal = createdAt || timestamp;
+  if (!parseVal) return 'Just now';
+
+  try {
+    // If it's already a clean time like "02:30 PM", and we don't have createdAt:
+    if (!createdAt && timestamp && /^(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)$/.test(timestamp)) {
+      return timestamp;
+    }
+
+    const d = new Date(parseVal);
+    if (isNaN(d.getTime())) {
+      // Fallback: if timestamp is readable string return it
+      if (timestamp && timestamp !== 'Invalid Date') return timestamp;
+      return 'Just now';
+    }
+
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday =
+      d.getDate() === yesterday.getDate() &&
+      d.getMonth() === yesterday.getMonth() &&
+      d.getFullYear() === yesterday.getFullYear();
+
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) {
+      return timeStr;
+    }
+    if (isYesterday) {
+      return `Yesterday, ${timeStr}`;
+    }
+
+    const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  } catch {
+    return timestamp || 'Just now';
   }
 }
 

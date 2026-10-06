@@ -26,6 +26,13 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatChatTimestamp } from '@/lib/utils';
+import {
+  ImageIcon,
+  Edit2,
+  Trash2,
+  User
+} from 'lucide-react';
 
 export function ChatDesk() {
   const { currentUser, users } = useAuth();
@@ -35,10 +42,13 @@ export function ChatDesk() {
     activeGroupId,
     setActiveGroupId,
     createGroup,
+    openOrCreateDirectChat,
     inviteMemberByEmail,
     acceptInvitation,
     declineInvitation,
     sendMessage,
+    editMessage,
+    deleteMessage,
     activeGroupMessages,
     pendingInvitations,
     desktopPushStatus,
@@ -440,19 +450,47 @@ export function ChatDesk() {
                             </div>
                           )}
 
-                          {/* Message Text */}
-                          <p className="text-xs leading-relaxed whitespace-pre-wrap select-text font-sans">
-                            {msg.text}
-                          </p>
+                          {/* Attached Image (if present) */}
+                          {msg.imageUrl && (
+                            <div className="mb-2">
+                              <img
+                                src={msg.imageUrl}
+                                alt="Shared image"
+                                className="max-h-60 rounded-[2px] object-cover border border-white/20"
+                              />
+                            </div>
+                          )}
 
-                          {/* Timestamp & Read Checkmark */}
+                          {/* Message Text */}
+                          {msg.isDeleted ? (
+                            <p className="text-xs italic text-slate-400">
+                              This message was deleted
+                            </p>
+                          ) : (
+                            <p className="text-xs leading-relaxed whitespace-pre-wrap select-text font-sans">
+                              {msg.text}
+                            </p>
+                          )}
+
+                          {/* Timestamp, Edit Tag & Read Checkmark */}
                           <div
                             className={`flex items-center justify-end gap-1 mt-1 text-[10px] font-mono ${
                               isMe ? 'text-sky-200' : 'text-slate-400'
                             }`}
                           >
-                            <span>{msg.timestamp}</span>
+                            <span>{formatChatTimestamp(msg.timestamp, msg.createdAt)}</span>
+                            {msg.editedAt && <span className="text-[9px] italic">(edited)</span>}
                             {isMe && <CheckCheck className="w-3 h-3 text-sky-200" />}
+                            {isMe && !msg.isDeleted && (
+                              <button
+                                type="button"
+                                onClick={() => deleteMessage(msg.id)}
+                                className="ml-1 text-slate-400 hover:text-rose-400"
+                                title="Delete message"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

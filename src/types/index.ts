@@ -215,6 +215,9 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   createdAt: string;
+  editedAt?: string;
+  isDeleted?: boolean;
+  imageUrl?: string;
   attachments?: {
     name: string;
     url: string;
@@ -232,6 +235,8 @@ export interface ChatGroup {
   createdAt: string;
   avatar?: string;
   memberIds: string[];
+  isDirect?: boolean;
+  directUserIds?: [string, string]; // Exactly 2 users for 1-on-1 DM
   pendingInvitations?: GroupInvitation[];
   lastMessage?: {
     text: string;

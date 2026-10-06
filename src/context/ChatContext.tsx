@@ -27,10 +27,13 @@ interface ChatContextType {
   activeGroupId: string | null;
   setActiveGroupId: (id: string | null) => void;
   createGroup: (name: string, description: string, memberEmails: string[]) => { success: boolean; error?: string; group?: ChatGroup };
+  openOrCreateDirectChat: (targetUserId: string) => string;
   inviteMemberByEmail: (groupId: string, email: string) => { success: boolean; error?: string };
   acceptInvitation: (invitationId: string) => void;
   declineInvitation: (invitationId: string) => void;
-  sendMessage: (groupId: string, text: string) => void;
+  sendMessage: (groupId: string, text: string, imageUrl?: string) => void;
+  editMessage: (messageId: string, newText: string) => void;
+  deleteMessage: (messageId: string) => void;
   activeGroupMessages: ChatMessage[];
   pendingInvitations: GroupInvitation[];
   desktopPushStatus: NotificationPermission;
@@ -101,9 +104,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // 1. Instant WebSocket push for incoming live chat messages (sub-50ms)
-    const unsubscribeChatMsg = subscribeToLiveChatMessage((incomingMsg: ChatMessage) => {
-      if (!incomingMsg || !incomingMsg.id) return;
+    // 1. Instant WebSocket push for incoming live chat messages, edits & deletes (sub-50ms)
+    const unsubscribeChatMsg = subscribeToLiveChatMessage((payload: any) => {
+      if (!payload) return;
+
+      // Handle message edit/delete event
+      if (payload.action === 'edit' && payload.messageId) {
+        setMessages(prev => {
+          const next = prev.map(m => m.id === payload.messageId ? { ...m, text: payload.text, editedAt: payload.editedAt } : m);
+          saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
+          return next;
+        });
+        return;
+      }
+
+      if (payload.action === 'delete' && payload.messageId) {
+        setMessages(prev => {
+          const next = prev.map(m => m.id === payload.messageId ? { ...m, isDeleted: true, text: 'This message was deleted' } : m);
+          saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
+          return next;
+        });
+        return;
+      }
+
+      const incomingMsg = payload as ChatMessage;
+      if (!incomingMsg.id) return;
       if (incomingMsg.senderId === currentUser?.id) return; // already added locally
 
       setMessages(prev => {
@@ -118,7 +143,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const next = prevGroups.map(g => g.id === incomingMsg.groupId ? {
           ...g,
           lastMessage: {
-            text: incomingMsg.text,
+            text: incomingMsg.imageUrl ? '📷 [Image shared]' : incomingMsg.text,
             senderName: incomingMsg.senderName,
             timestamp: incomingMsg.timestamp
           }
@@ -130,7 +155,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Sound chime and push notification on other device
       playGlassChime('alert');
       sendDesktopPushNotification(incomingMsg.senderName || 'Team Chat', {
-        body: `${incomingMsg.senderName}: ${incomingMsg.text}`,
+        body: `${incomingMsg.senderName}: ${incomingMsg.imageUrl ? '📷 Image shared' : incomingMsg.text}`,
         tag: incomingMsg.groupId
       });
     });
@@ -402,12 +427,58 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     showNotification('Invitation Declined', 'The group invitation was declined.', 'info');
   }, [groups, syncGroups, showNotification]);
 
-  // Send Message
-  const sendMessage = useCallback((groupId: string, text: string) => {
+  // Open or Create 1-on-1 Direct Chat (DM) between currentUser and targetUser
+  const openOrCreateDirectChat = useCallback((targetUserId: string): string => {
+    if (!currentUser) return '';
+    const targetUser = users.find(u => u.id === targetUserId);
+    if (!targetUser) return '';
+
+    // Check if a direct group already exists between these 2 users
+    const existingDm = groups.find(g =>
+      g.isDirect &&
+      g.memberIds.length === 2 &&
+      g.memberIds.includes(currentUser.id) &&
+      g.memberIds.includes(targetUserId)
+    );
+
+    if (existingDm) {
+      setActiveGroupId(existingDm.id);
+      return existingDm.id;
+    }
+
+    // Otherwise create a new direct conversation pod
+    const dmId = 'dm-' + [currentUser.id, targetUserId].sort().join('-');
+    const newDmGroup: ChatGroup = {
+      id: dmId,
+      name: `${targetUser.name}`,
+      description: `Direct private conversation with ${targetUser.name} (${targetUser.department || 'Team'})`,
+      createdBy: currentUser.id,
+      createdByName: currentUser.name,
+      createdAt: new Date().toISOString(),
+      memberIds: [currentUser.id, targetUserId],
+      isDirect: true,
+      directUserIds: [currentUser.id, targetUserId],
+      avatar: targetUser.avatarUrl,
+      lastMessage: {
+        text: 'Started direct conversation',
+        senderName: 'System',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    };
+
+    const updatedGroups = [newDmGroup, ...groups];
+    syncGroups(updatedGroups);
+    setActiveGroupId(dmId);
+    return dmId;
+  }, [currentUser, users, groups, syncGroups]);
+
+  // Send Message (supports text and/or image)
+  const sendMessage = useCallback((groupId: string, text: string, imageUrl?: string) => {
     if (!currentUser) return;
-    if (!text.trim()) return;
+    if (!text.trim() && !imageUrl) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nowIso = new Date().toISOString();
 
     // STRICT: senderName must be employee NAME, NOT email!
     const newMsg: ChatMessage = {
@@ -418,8 +489,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       senderRole: currentUser.role,
       senderAvatar: currentUser.avatarUrl,
       text: text.trim(),
+      imageUrl: imageUrl || undefined,
       timestamp: timeStr,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       isSystem: false
     };
 
@@ -429,7 +501,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return {
           ...g,
           lastMessage: {
-            text: text.trim(),
+            text: imageUrl ? '📷 [Image shared]' : text.trim(),
             senderName: currentUser.name,
             timestamp: timeStr
           }
@@ -449,10 +521,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Desktop Push Notification
     sendDesktopPushNotification(targetGroup ? targetGroup.name : 'Team Chat', {
-      body: `${currentUser.name}: ${text.trim()}`,
+      body: `${currentUser.name}: ${imageUrl ? '📷 Image shared' : text.trim()}`,
       tag: groupId
     });
   }, [currentUser, groups, messages, syncMessages, syncGroups]);
+
+  // Edit Message
+  const editMessage = useCallback((messageId: string, newText: string) => {
+    if (!currentUser || !newText.trim()) return;
+
+    const editedAt = new Date().toISOString();
+    const updated = messages.map(m => {
+      if (m.id === messageId && m.senderId === currentUser.id) {
+        return { ...m, text: newText.trim(), editedAt };
+      }
+      return m;
+    });
+
+    syncMessages(updated);
+
+    // Broadcast edit event
+    broadcastRealtimeEvent('chat_msg', {
+      action: 'edit',
+      messageId,
+      text: newText.trim(),
+      editedAt
+    });
+
+    showNotification('Message Updated', 'Your message was successfully edited.', 'success');
+  }, [currentUser, messages, syncMessages, showNotification]);
+
+  // Delete Message
+  const deleteMessage = useCallback((messageId: string) => {
+    if (!currentUser) return;
+
+    const updated = messages.map(m => {
+      if (m.id === messageId && m.senderId === currentUser.id) {
+        return {
+          ...m,
+          isDeleted: true,
+          text: 'This message was deleted'
+        };
+      }
+      return m;
+    });
+
+    syncMessages(updated);
+
+    // Broadcast delete event
+    broadcastRealtimeEvent('chat_msg', {
+      action: 'delete',
+      messageId
+    });
+
+    showNotification('Message Deleted', 'Your message was removed.', 'info');
+  }, [currentUser, messages, syncMessages, showNotification]);
 
   // Get active group messages
   const activeGroupMessages = messages.filter(m => m.groupId === activeGroupId);
@@ -469,7 +592,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  // Filter groups visible to current user (creator, member, or pending invitee)
+  // Filter groups visible to current user (creator, member, direct chat, or pending invitee)
   const visibleGroups = groups.filter(g =>
     currentUser ? g.memberIds.includes(currentUser.id) || g.createdBy === currentUser.id : true
   );
@@ -482,10 +605,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         activeGroupId,
         setActiveGroupId,
         createGroup,
+        openOrCreateDirectChat,
         inviteMemberByEmail,
         acceptInvitation,
         declineInvitation,
         sendMessage,
+        editMessage,
+        deleteMessage,
         activeGroupMessages,
         pendingInvitations,
         desktopPushStatus,
