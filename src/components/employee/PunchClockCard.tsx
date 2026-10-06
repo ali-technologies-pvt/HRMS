@@ -150,14 +150,14 @@ export function PunchClockCard() {
         startY: finalY + 4,
         theme: 'striped',
         headStyles: { fillColor: [15, 23, 42], textColor: [56, 189, 248] },
-        head: [['Item Description', 'Type', 'Amount (USD)']],
+        head: [['Item Description', 'Type', 'Amount (PKR)']],
         body: [
-          ['Basic Contractual Base', 'Earnings', `$${slip.basicSalary.toLocaleString()}`],
-          [`Approved Overtime (${slip.overtimeHours} Hours)`, 'Earnings', `+$${slip.overtimePay.toLocaleString()}`],
-          ['Standard Allowances (Medical & Transit)', 'Earnings', `+$${slip.allowances.toLocaleString()}`],
-          [`Loss of Pay (Unpaid Absence: ${slip.lossOfPayDays} Days)`, 'Deduction', `-$${slip.lossOfPayDeduction.toLocaleString()}`],
-          ['Income Tax Withholding', 'Deduction', `-$${slip.taxDeduction.toLocaleString()}`],
-          ['NET SALARY DISBURSEMENT', 'FINAL PAY', `$${slip.netSalary.toLocaleString()}`]
+          ['Basic Contractual Base', 'Earnings', `PKR ${slip.basicSalary.toLocaleString()}`],
+          [`Approved Overtime (${slip.overtimeHours} Hours)`, 'Earnings', `+PKR ${slip.overtimePay.toLocaleString()}`],
+          ['Standard Allowances (Medical & Transit)', 'Earnings', `+PKR ${slip.allowances.toLocaleString()}`],
+          [`Loss of Pay (Unpaid Absence: ${slip.lossOfPayDays} Days)`, 'Deduction', `-PKR ${slip.lossOfPayDeduction.toLocaleString()}`],
+          ['Income Tax Withholding', 'Deduction', `-PKR ${slip.taxDeduction.toLocaleString()}`],
+          ['NET SALARY DISBURSEMENT', 'FINAL PAY', `PKR ${slip.netSalary.toLocaleString()}`]
         ]
       });
 
@@ -926,29 +926,29 @@ export function PunchClockCard() {
                     <div className="space-y-2 text-xs font-mono mb-4">
                       <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
                         <span className="text-slate-500 dark:text-slate-400">Basic Monthly Base:</span>
-                        <span className="font-semibold">${slip.basicSalary.toLocaleString()}</span>
+                        <span className="font-semibold">PKR {slip.basicSalary.toLocaleString()}</span>
                       </div>
 
                       <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400 font-semibold">
                         <span>Overtime Pay ({slip.overtimeHours}h):</span>
-                        <span>+${slip.overtimePay.toLocaleString()}</span>
+                        <span>+PKR {slip.overtimePay.toLocaleString()}</span>
                       </div>
 
                       <div className="flex items-center justify-between text-sky-700 dark:text-cyan-300 font-semibold">
                         <span>Standard Allowances:</span>
-                        <span>+${slip.allowances.toLocaleString()}</span>
+                        <span>+PKR {slip.allowances.toLocaleString()}</span>
                       </div>
 
                       {slip.lossOfPayDays > 0 && (
                         <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 font-semibold">
                           <span>Loss of Pay ({slip.lossOfPayDays}d):</span>
-                          <span>-${slip.lossOfPayDeduction.toLocaleString()}</span>
+                          <span>-PKR {slip.lossOfPayDeduction.toLocaleString()}</span>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 font-medium">
                         <span>Tax Withholding:</span>
-                        <span>-${slip.taxDeduction.toLocaleString()}</span>
+                        <span>-PKR {slip.taxDeduction.toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -958,7 +958,7 @@ export function PunchClockCard() {
                         Net Disbursed:
                       </span>
                       <span className="text-xl font-mono font-black text-slate-900 dark:text-white">
-                        ${slip.netSalary.toLocaleString()}
+                        PKR {slip.netSalary.toLocaleString()}
                       </span>
                     </div>
                   </div>

@@ -159,7 +159,7 @@ export function CompanySetupDesk() {
                   <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
                     <span className="text-slate-500">Allocated Budget:</span>
                     <span className="text-emerald-700 dark:text-emerald-400 font-bold">
-                      {proj.budget ? '$' + proj.budget.toLocaleString() : 'Deliverable-based'}
+                      {proj.budget ? 'PKR ' + proj.budget.toLocaleString() : 'Deliverable-based'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
@@ -324,7 +324,7 @@ export function CompanySetupDesk() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">Budget ($)</label>
+                    <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">Budget (PKR)</label>
                     <input
                       type="number"
                       required

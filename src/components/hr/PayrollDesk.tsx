@@ -69,14 +69,14 @@ export function PayrollDesk() {
         startY: finalY + 4,
         theme: 'striped',
         headStyles: { fillColor: [15, 23, 42], textColor: [56, 189, 248] },
-        head: [['Item Description', 'Type', 'Amount (USD)']],
+        head: [['Item Description', 'Type', 'Amount (PKR)']],
         body: [
-          ['Basic Contractual Salary', 'Earnings', `$${slip.basicSalary.toLocaleString()}`],
-          [`Approved Overtime (${slip.overtimeHours} Hours)`, 'Earnings', `+$${slip.overtimePay.toLocaleString()}`],
-          ['Standard Allowances (Medical & Travel)', 'Earnings', `+$${slip.allowances.toLocaleString()}`],
-          [`Loss of Pay (Unpaid Absence: ${slip.lossOfPayDays} Days)`, 'Deduction', `-$${slip.lossOfPayDeduction.toLocaleString()}`],
-          ['Income Tax Withholding', 'Deduction', `-$${slip.taxDeduction.toLocaleString()}`],
-          ['NET SALARY DISBURSEMENT', 'FINAL PAY', `$${slip.netSalary.toLocaleString()}`]
+          ['Basic Contractual Salary', 'Earnings', `PKR ${slip.basicSalary.toLocaleString()}`],
+          [`Approved Overtime (${slip.overtimeHours} Hours)`, 'Earnings', `+PKR ${slip.overtimePay.toLocaleString()}`],
+          ['Standard Allowances (Medical & Travel)', 'Earnings', `+PKR ${slip.allowances.toLocaleString()}`],
+          [`Loss of Pay (Unpaid Absence: ${slip.lossOfPayDays} Days)`, 'Deduction', `-PKR ${slip.lossOfPayDeduction.toLocaleString()}`],
+          ['Income Tax Withholding', 'Deduction', `-PKR ${slip.taxDeduction.toLocaleString()}`],
+          ['NET SALARY DISBURSEMENT', 'FINAL PAY', `PKR ${slip.netSalary.toLocaleString()}`]
         ]
       });
 
@@ -172,7 +172,7 @@ export function PayrollDesk() {
                     </td>
 
                     <td className="py-3 text-slate-700 dark:text-slate-300 font-semibold">
-                      ${slip.basicSalary.toLocaleString()}
+                      PKR {slip.basicSalary.toLocaleString()}
                     </td>
 
                     <td className="py-3 text-slate-700 dark:text-slate-300">
@@ -180,23 +180,23 @@ export function PayrollDesk() {
                     </td>
 
                     <td className="py-3 text-emerald-700 dark:text-emerald-400 font-bold">
-                      +${slip.overtimePay.toLocaleString()}
+                      +PKR {slip.overtimePay.toLocaleString()}
                     </td>
 
                     <td className="py-3 text-rose-700 dark:text-rose-400 font-bold">
                       {slip.lossOfPayDays > 0 ? (
-                        <span>-${slip.lossOfPayDeduction.toLocaleString()} ({slip.lossOfPayDays}d)</span>
+                        <span>-PKR {slip.lossOfPayDeduction.toLocaleString()} ({slip.lossOfPayDays}d)</span>
                       ) : (
-                        <span className="text-slate-400">$0</span>
+                        <span className="text-slate-400">PKR 0</span>
                       )}
                     </td>
 
                     <td className="py-3 text-slate-500 dark:text-slate-400">
-                      -${slip.taxDeduction.toLocaleString()}
+                      -PKR {slip.taxDeduction.toLocaleString()}
                     </td>
 
                     <td className="py-3 text-slate-900 dark:text-white font-extrabold text-sm bg-sky-500/10 dark:bg-cyan-500/5 px-2">
-                      ${slip.netSalary.toLocaleString()}
+                      PKR {slip.netSalary.toLocaleString()}
                     </td>
 
                     <td className="py-3 text-right pr-2 font-sans">

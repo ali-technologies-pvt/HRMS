@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { LiquidButton } from './LiquidButton';
-import { X, User, Camera, KeyRound, ShieldCheck, Mail, Phone, Building2, Briefcase, FileText, Check, Upload } from 'lucide-react';
+import { X, User, Camera, KeyRound, ShieldCheck, Mail, Phone, Building2, Briefcase, FileText, Check, Upload, Sparkles } from 'lucide-react';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -34,6 +34,20 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const [bio, setBio] = useState(currentUser.bio || '');
   const [department, setDepartment] = useState(currentUser.department);
   const [designation, setDesignation] = useState(currentUser.designation);
+  const [uploadSuccessNotice, setUploadSuccessNotice] = useState<string | null>(null);
+
+  // Sync state whenever modal is opened or currentUser updates
+  useEffect(() => {
+    if (isOpen) {
+      setName(currentUser.name);
+      setAvatarUrl(currentUser.avatarUrl);
+      setPhone(currentUser.phone || '');
+      setBio(currentUser.bio || '');
+      setDepartment(currentUser.department);
+      setDesignation(currentUser.designation);
+      setUploadSuccessNotice(null);
+    }
+  }, [isOpen, currentUser]);
 
   // Password states
   const [oldPassword, setOldPassword] = useState('');
@@ -115,6 +129,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
           setAvatarUrl(compressedDataUrl);
+          setUploadSuccessNotice(`Photo "${file.name}" loaded successfully! Click "Save Profile Changes" below to apply.`);
         }
       };
       img.src = event.target?.result as string;
@@ -211,6 +226,13 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                     />
                   </label>
                 </div>
+
+                {uploadSuccessNotice && (
+                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-400/40 rounded-[2px] flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                    <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{uploadSuccessNotice}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-4">
                   <div className="relative group">

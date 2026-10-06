@@ -1493,7 +1493,7 @@ export function ManagerDashboard() {
                       </td>
 
                       <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
-                        ${emp.salary.toLocaleString()}/mo
+                        PKR {emp.salary.toLocaleString()}/mo
                       </td>
 
                       <td className="py-2.5 px-3">
@@ -2687,7 +2687,7 @@ export function ManagerDashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                        Base Monthly Salary ($)
+                        Base Monthly Salary (PKR)
                       </label>
                       <input
                         type="number"

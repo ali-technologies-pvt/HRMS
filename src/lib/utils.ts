@@ -81,11 +81,7 @@ export function formatChatTimestamp(timestamp?: string, createdAt?: string): str
 }
 
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return `PKR ${Number(amount || 0).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
 }
 
 // Gentle Web Audio API synthesizer for Apple-like glassy UI feedback

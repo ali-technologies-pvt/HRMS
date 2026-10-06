@@ -637,7 +637,7 @@ export function LiveActivityTracker() {
                     <Briefcase className="w-3 h-3 text-amber-500" /> Base Pay
                   </div>
                   <div className="text-slate-800 dark:text-slate-200 font-bold mt-1">
-                    ${inspectEmployee.salary.toLocaleString()}/mo
+                    PKR {inspectEmployee.salary.toLocaleString()}/mo
                   </div>
                 </div>
               </div>

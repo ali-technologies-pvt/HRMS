@@ -216,7 +216,7 @@ export function OnboardingDesk() {
 
                     {/* Salary */}
                     <td className="py-3 font-mono font-bold text-slate-900 dark:text-slate-200">
-                      ${user.salary.toLocaleString()}/mo
+                      PKR {user.salary.toLocaleString()}/mo
                     </td>
 
                     {/* Actions */}
@@ -374,7 +374,7 @@ export function OnboardingDesk() {
 
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
-                      Monthly Base Salary ($)
+                      Monthly Base Salary (PKR)
                     </label>
                     <input
                       type="number"
@@ -533,7 +533,7 @@ export function OnboardingDesk() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Monthly Salary ($)</label>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">Monthly Salary (PKR)</label>
                   <input
                     type="number"
                     name="editSalary"
