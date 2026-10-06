@@ -209,16 +209,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [currentUser?.id]);
 
   // Sync to storage and Supabase
-  const syncGroups = useCallback((updated: ChatGroup[]) => {
-    setGroups(updated);
-    saveToStorage(STORAGE_KEYS.CHAT_GROUPS, updated);
-    pushCollectionToSupabase(STORAGE_KEYS.CHAT_GROUPS, updated).catch(console.warn);
+  const syncGroups = useCallback((updatedOrFn: ChatGroup[] | ((prev: ChatGroup[]) => ChatGroup[])) => {
+    setGroups(prev => {
+      const next = typeof updatedOrFn === 'function' ? updatedOrFn(prev) : updatedOrFn;
+      saveToStorage(STORAGE_KEYS.CHAT_GROUPS, next);
+      pushCollectionToSupabase(STORAGE_KEYS.CHAT_GROUPS, next).catch(console.warn);
+      return next;
+    });
   }, []);
 
-  const syncMessages = useCallback((updated: ChatMessage[]) => {
-    setMessages(updated);
-    saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, updated);
-    pushCollectionToSupabase(STORAGE_KEYS.CHAT_MESSAGES, updated).catch(console.warn);
+  const syncMessages = useCallback((updatedOrFn: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    setMessages(prev => {
+      const next = typeof updatedOrFn === 'function' ? updatedOrFn(prev) : updatedOrFn;
+      saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
+      pushCollectionToSupabase(STORAGE_KEYS.CHAT_MESSAGES, next).catch(console.warn);
+      return next;
+    });
   }, []);
 
   const enableDesktopPush = async () => {
@@ -495,50 +501,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isSystem: false
     };
 
-    const targetGroup = groups.find(g => g.id === groupId);
-    const updatedGroups = groups.map(g => {
-      if (g.id === groupId) {
-        return {
-          ...g,
-          lastMessage: {
-            text: imageUrl ? '📷 [Image shared]' : text.trim(),
-            senderName: currentUser.name,
-            timestamp: timeStr
-          }
-        };
+    // 1. Optimistic append to messages array immediately
+    syncMessages(prev => [...prev, newMsg]);
+
+    // 2. Optimistic update to group lastMessage
+    syncGroups(prevGroups => {
+      const targetGroup = prevGroups.find(g => g.id === groupId);
+      if (targetGroup) {
+        sendDesktopPushNotification(targetGroup.name, {
+          body: `${currentUser.name}: ${imageUrl ? '📷 Image shared' : text.trim()}`,
+          tag: groupId
+        });
       }
-      return g;
+      return prevGroups.map(g => {
+        if (g.id === groupId) {
+          return {
+            ...g,
+            lastMessage: {
+              text: imageUrl ? '📷 [Image shared]' : text.trim(),
+              senderName: currentUser.name,
+              timestamp: timeStr
+            }
+          };
+        }
+        return g;
+      });
     });
 
-    syncMessages([...messages, newMsg]);
-    syncGroups(updatedGroups);
-
-    // Instant WebSocket broadcast to other active terminals
+    // 3. Instant WebSocket broadcast to other active terminals
     broadcastRealtimeEvent('chat_msg', newMsg);
 
-    // Audio chime feedback
+    // 4. Audio chime feedback
     playGlassChime('click');
-
-    // Desktop Push Notification
-    sendDesktopPushNotification(targetGroup ? targetGroup.name : 'Team Chat', {
-      body: `${currentUser.name}: ${imageUrl ? '📷 Image shared' : text.trim()}`,
-      tag: groupId
-    });
-  }, [currentUser, groups, messages, syncMessages, syncGroups]);
+  }, [currentUser, syncMessages, syncGroups]);
 
   // Edit Message
   const editMessage = useCallback((messageId: string, newText: string) => {
     if (!currentUser || !newText.trim()) return;
 
     const editedAt = new Date().toISOString();
-    const updated = messages.map(m => {
+    syncMessages(prev => prev.map(m => {
       if (m.id === messageId && m.senderId === currentUser.id) {
         return { ...m, text: newText.trim(), editedAt };
       }
       return m;
-    });
-
-    syncMessages(updated);
+    }));
 
     // Broadcast edit event
     broadcastRealtimeEvent('chat_msg', {
@@ -549,13 +556,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     showNotification('Message Updated', 'Your message was successfully edited.', 'success');
-  }, [currentUser, messages, syncMessages, showNotification]);
+  }, [currentUser, syncMessages, showNotification]);
 
   // Delete Message
   const deleteMessage = useCallback((messageId: string) => {
     if (!currentUser) return;
 
-    const updated = messages.map(m => {
+    syncMessages(prev => prev.map(m => {
       if (m.id === messageId && m.senderId === currentUser.id) {
         return {
           ...m,
@@ -564,9 +571,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         };
       }
       return m;
-    });
-
-    syncMessages(updated);
+    }));
 
     // Broadcast delete event
     broadcastRealtimeEvent('chat_msg', {
@@ -575,7 +580,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     showNotification('Message Deleted', 'Your message was removed.', 'info');
-  }, [currentUser, messages, syncMessages, showNotification]);
+  }, [currentUser, syncMessages, showNotification]);
 
   // Get active group messages
   const activeGroupMessages = messages.filter(m => m.groupId === activeGroupId);
