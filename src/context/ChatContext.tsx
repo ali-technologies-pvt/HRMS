@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { ChatGroup, ChatMessage, GroupInvitation, User } from '@/types';
 import { initialChatGroups, initialChatMessages } from '@/lib/initialData';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
@@ -52,11 +52,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [desktopPushStatus, setDesktopPushStatus] = useState<NotificationPermission>('default');
   const [isLoaded, setIsLoaded] = useState(false);
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   // Initialize storage & cloud sync
   useEffect(() => {
+    // 1. Load persistent deleted message IDs tombstone
+    const initialDeleted = loadFromStorage<string[]>(STORAGE_KEYS.CHAT_DELETED_IDS, []);
+    initialDeleted.forEach(id => { if (id) deletedIdsRef.current.add(id); });
+
     const loadedGroups = loadFromStorage<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS, initialChatGroups);
-    const loadedMessages = loadFromStorage<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES, initialChatMessages);
+    const rawLoadedMessages = loadFromStorage<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES, initialChatMessages);
+
+    // Clean loaded messages: eliminate deleted messages and capture any with isDeleted
+    const loadedMessages = rawLoadedMessages.filter(m => {
+      if (!m?.id) return false;
+      if (m.isDeleted) {
+        deletedIdsRef.current.add(m.id);
+        return false;
+      }
+      return !deletedIdsRef.current.has(m.id);
+    });
+
+    saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
+    saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, loadedMessages);
+
     setGroups(loadedGroups);
     setMessages(loadedMessages);
 
@@ -77,10 +96,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Sync from Supabase cloud
     (async () => {
       try {
-        const [cloudGroups, cloudMessages] = await Promise.all([
+        const [cloudGroups, cloudMessages, cloudDeleted] = await Promise.all([
           fetchCollectionFromSupabase<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS),
-          fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES)
+          fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES),
+          fetchCollectionFromSupabase<string[]>(STORAGE_KEYS.CHAT_DELETED_IDS)
         ]);
+
+        if (cloudDeleted && Array.isArray(cloudDeleted)) {
+          cloudDeleted.forEach(id => { if (id) deletedIdsRef.current.add(id); });
+          saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
+        } else if (deletedIdsRef.current.size > 0) {
+          pushCollectionToSupabase(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current)).catch(console.warn);
+        }
 
         if (cloudGroups && cloudGroups.length > 0) {
           setGroups(cloudGroups);
@@ -96,10 +123,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (cloudMessages && cloudMessages.length > 0) {
           setMessages(prev => {
             const map = new Map<string, ChatMessage>();
-            cloudMessages.forEach(m => { if (m?.id) map.set(m.id, m); });
-            prev.forEach(m => { if (m?.id && !map.has(m.id)) map.set(m.id, m); });
+            cloudMessages.forEach(m => {
+              if (m?.id) {
+                if (m.isDeleted || deletedIdsRef.current.has(m.id)) {
+                  deletedIdsRef.current.add(m.id);
+                } else {
+                  map.set(m.id, m);
+                }
+              }
+            });
+            prev.forEach(m => {
+              if (m?.id && !m.isDeleted && !deletedIdsRef.current.has(m.id) && !map.has(m.id)) {
+                map.set(m.id, m);
+              }
+            });
             const merged = Array.from(map.values());
             saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
+            saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
             return merged;
           });
         } else if (loadedMessages.length > 0) {
@@ -114,7 +154,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const unsubscribeChatMsg = subscribeToLiveChatMessage((payload: any) => {
       if (!payload) return;
 
-      // Handle message edit/delete event
+      // Handle message edit event
       if (payload.action === 'edit' && payload.messageId) {
         setMessages(prev => {
           const next = prev.map(m => m.id === payload.messageId ? { ...m, text: payload.text, editedAt: payload.editedAt } : m);
@@ -124,17 +164,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Handle message delete event
       if (payload.action === 'delete' && payload.messageId) {
+        deletedIdsRef.current.add(payload.messageId);
+        saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
+
         setMessages(prev => {
-          const next = prev.map(m => m.id === payload.messageId ? { ...m, isDeleted: true, text: 'This message was deleted' } : m);
+          const next = prev.filter(m => m.id !== payload.messageId);
           saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
           return next;
         });
+
+        if (payload.groupId) {
+          setGroups(prevGroups => {
+            return prevGroups.map(g => {
+              if (g.id === payload.groupId) {
+                const remaining = messages.filter(m => m.groupId === payload.groupId && m.id !== payload.messageId);
+                const lastMsg = remaining[remaining.length - 1];
+                return {
+                  ...g,
+                  lastMessage: lastMsg ? {
+                    text: lastMsg.imageUrl ? '📷 [Image shared]' : lastMsg.text,
+                    senderName: lastMsg.senderName,
+                    timestamp: lastMsg.timestamp
+                  } : undefined
+                };
+              }
+              return g;
+            });
+          });
+        }
         return;
       }
 
       const incomingMsg = payload as ChatMessage;
       if (!incomingMsg.id) return;
+      if (incomingMsg.isDeleted || deletedIdsRef.current.has(incomingMsg.id)) return;
       if (incomingMsg.senderId === currentUser?.id) return; // already added locally
 
       setMessages(prev => {
@@ -168,6 +233,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // 2. Realtime collections listener for chat groups & bulk messages
     const unsubscribeCollections = subscribeToCollectionChange((key, data) => {
+      if (key === STORAGE_KEYS.CHAT_DELETED_IDS && Array.isArray(data)) {
+        data.forEach((id: string) => { if (id) deletedIdsRef.current.add(id); });
+        saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
+        setMessages(prev => {
+          const next = prev.filter(m => !deletedIdsRef.current.has(m.id));
+          if (next.length !== prev.length) {
+            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, next);
+            return next;
+          }
+          return prev;
+        });
+      }
+
       if (key === STORAGE_KEYS.CHAT_GROUPS && Array.isArray(data)) {
         setGroups(prevGroups => {
           const map = new Map<string, ChatGroup>();
@@ -178,22 +256,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return merged;
         });
       }
+
       if (key === STORAGE_KEYS.CHAT_MESSAGES && Array.isArray(data)) {
         setMessages(prev => {
           const map = new Map<string, ChatMessage>();
-          data.forEach((m: ChatMessage) => { if (m?.id) map.set(m.id, m); });
+          data.forEach((m: ChatMessage) => {
+            if (m?.id) {
+              if (m.isDeleted || deletedIdsRef.current.has(m.id)) {
+                deletedIdsRef.current.add(m.id);
+              } else {
+                map.set(m.id, m);
+              }
+            }
+          });
           // Preserve any local optimistic messages not yet reflected in incoming data
           prev.forEach(m => {
-            if (m?.id && !map.has(m.id)) {
+            if (m?.id && !m.isDeleted && !deletedIdsRef.current.has(m.id) && !map.has(m.id)) {
               map.set(m.id, m);
             }
           });
           const merged = Array.from(map.values());
-          if (merged.length !== prev.length || (merged.length > 0 && merged[merged.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-            saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
-            return merged;
-          }
-          return prev;
+          saveToStorage(STORAGE_KEYS.CHAT_MESSAGES, merged);
+          return merged;
         });
       }
     });
@@ -201,18 +285,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // 3. High-frequency background sync polling (every 3 seconds)
     const pollInterval = setInterval(async () => {
       try {
-        const [cloudMessages, cloudGroups] = await Promise.all([
+        const [cloudMessages, cloudGroups, cloudDeleted] = await Promise.all([
           fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES),
-          fetchCollectionFromSupabase<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS)
+          fetchCollectionFromSupabase<ChatGroup[]>(STORAGE_KEYS.CHAT_GROUPS),
+          fetchCollectionFromSupabase<string[]>(STORAGE_KEYS.CHAT_DELETED_IDS)
         ]);
+
+        if (cloudDeleted && Array.isArray(cloudDeleted)) {
+          let hasNew = false;
+          cloudDeleted.forEach(id => {
+            if (id && !deletedIdsRef.current.has(id)) {
+              deletedIdsRef.current.add(id);
+              hasNew = true;
+            }
+          });
+          if (hasNew) {
+            saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, Array.from(deletedIdsRef.current));
+            setMessages(prev => prev.filter(m => !deletedIdsRef.current.has(m.id)));
+          }
+        }
 
         if (cloudMessages && Array.isArray(cloudMessages)) {
           setMessages(prev => {
             const map = new Map<string, ChatMessage>();
-            cloudMessages.forEach(m => { if (m?.id) map.set(m.id, m); });
+            cloudMessages.forEach(m => {
+              if (m?.id) {
+                if (m.isDeleted || deletedIdsRef.current.has(m.id)) {
+                  deletedIdsRef.current.add(m.id);
+                } else {
+                  map.set(m.id, m);
+                }
+              }
+            });
             // ALWAYS keep optimistic/locally sent messages
             prev.forEach(m => {
-              if (m?.id && !map.has(m.id)) {
+              if (m?.id && !m.isDeleted && !deletedIdsRef.current.has(m.id) && !map.has(m.id)) {
                 map.set(m.id, m);
               }
             });
@@ -598,32 +705,64 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     showNotification('Message Updated', 'Your message was successfully edited.', 'success');
   }, [currentUser, syncMessages, showNotification]);
 
-  // Delete Message
+  // Delete Message permanently
   const deleteMessage = useCallback((messageId: string) => {
     if (!currentUser) return;
 
-    syncMessages(prev => prev.map(m => {
-      if (m.id === messageId && m.senderId === currentUser.id) {
-        return {
-          ...m,
-          isDeleted: true,
-          text: 'This message was deleted'
-        };
-      }
-      return m;
-    }));
+    // 1. Add to persistent tombstone set
+    deletedIdsRef.current.add(messageId);
+    const updatedDeleted = Array.from(deletedIdsRef.current);
+    saveToStorage(STORAGE_KEYS.CHAT_DELETED_IDS, updatedDeleted);
+    pushCollectionToSupabase(STORAGE_KEYS.CHAT_DELETED_IDS, updatedDeleted).catch(console.warn);
 
-    // Broadcast delete event
-    broadcastRealtimeEvent('chat_msg', {
-      action: 'delete',
-      messageId
+    // 2. Identify target group for lastMessage calculation
+    let targetGroupId = '';
+
+    // 3. Remove message completely from state, localStorage & Supabase
+    syncMessages(prev => {
+      const target = prev.find(m => m.id === messageId);
+      if (target) {
+        targetGroupId = target.groupId;
+      }
+      return prev.filter(m => m.id !== messageId);
     });
 
-    showNotification('Message Deleted', 'Your message was removed.', 'info');
-  }, [currentUser, syncMessages, showNotification]);
+    // 4. Instant WebSocket broadcast to other active users/devices
+    broadcastRealtimeEvent('chat_msg', {
+      action: 'delete',
+      messageId,
+      groupId: targetGroupId
+    });
 
-  // Get active group messages
-  const activeGroupMessages = messages.filter(m => m.groupId === activeGroupId);
+    // 5. Update group's last message if the deleted message was the last one
+    if (targetGroupId) {
+      syncGroups(prevGroups => {
+        const remaining = messages.filter(m => m.groupId === targetGroupId && m.id !== messageId);
+        const lastMsg = remaining[remaining.length - 1];
+
+        return prevGroups.map(g => {
+          if (g.id === targetGroupId) {
+            return {
+              ...g,
+              lastMessage: lastMsg ? {
+                text: lastMsg.imageUrl ? '📷 [Image shared]' : lastMsg.text,
+                senderName: lastMsg.senderName,
+                timestamp: lastMsg.timestamp
+              } : undefined
+            };
+          }
+          return g;
+        });
+      });
+    }
+
+    showNotification('Message Deleted', 'Message deleted permanently.', 'info');
+  }, [currentUser, syncMessages, syncGroups, messages, showNotification]);
+
+  // Get active group messages (strictly excluding any deleted messages)
+  const activeGroupMessages = messages.filter(
+    m => m.groupId === activeGroupId && !m.isDeleted && !deletedIdsRef.current.has(m.id)
+  );
 
   // Pending invitations for current user
   const pendingInvitations: GroupInvitation[] = [];

@@ -639,19 +639,21 @@ export function FloatingChatWidget() {
                               )}
 
                               {/* Hover menu for edit/delete */}
-                              {isMe && !msg.isDeleted && !isEditing && (
+                              {(isMe || currentUser?.role === 'super_admin' || currentUser?.role === 'manager') && !msg.isDeleted && !isEditing && (
                                 <div className="absolute top-1/2 -translate-y-1/2 -left-14 hidden group-hover/bubble:flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg p-1 shadow-md">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingMessageId(msg.id);
-                                      setEditingText(msg.text);
-                                    }}
-                                    title="Edit"
-                                    className="p-1 text-slate-400 hover:text-emerald-500 rounded"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </button>
+                                  {isMe && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingMessageId(msg.id);
+                                        setEditingText(msg.text);
+                                      }}
+                                      title="Edit"
+                                      className="p-1 text-slate-400 hover:text-emerald-500 rounded"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => deleteMessage(msg.id)}

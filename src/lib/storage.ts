@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   IS_AUTHENTICATED: 'quickslogx_is_authenticated_v6',
   CHAT_GROUPS: 'quickslogx_chat_groups_v6',
   CHAT_MESSAGES: 'quickslogx_chat_messages_v6',
+  CHAT_DELETED_IDS: 'quickslogx_chat_deleted_ids_v6',
 };
 
 // Safe JSON parse from localStorage with fallback

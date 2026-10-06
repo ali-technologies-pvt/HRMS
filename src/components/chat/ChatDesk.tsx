@@ -481,7 +481,7 @@ export function ChatDesk() {
                             <span>{formatChatTimestamp(msg.timestamp, msg.createdAt)}</span>
                             {msg.editedAt && <span className="text-[9px] italic">(edited)</span>}
                             {isMe && <CheckCheck className="w-3 h-3 text-sky-200" />}
-                            {isMe && !msg.isDeleted && (
+                            {(isMe || currentUser?.role === 'super_admin' || currentUser?.role === 'manager') && !msg.isDeleted && (
                               <button
                                 type="button"
                                 onClick={() => deleteMessage(msg.id)}
