@@ -155,10 +155,10 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
   // Active card options menu dropdown
   const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null);
 
-  // Live timer tick
+  // Live timer tick (throttled to 10s to keep UI lightweight and prevent lag)
   const [, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    const timer = setInterval(() => setTick(t => t + 1), 10000);
     return () => clearInterval(timer);
   }, []);
 

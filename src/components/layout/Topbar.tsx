@@ -7,15 +7,18 @@ import { useNotifications } from '@/context/NotificationContext';
 import { useTheme } from '@/context/ThemeContext';
 import { ProfileEditModal } from '../common/ProfileEditModal';
 import { ExitClearanceModal } from '../common/ExitClearanceModal';
-import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare } from 'lucide-react';
+import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare, Menu, X as CloseIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '@/context/ChatContext';
+import { PwaInstallButton } from '../common/PwaInstallButton';
 
 interface TopbarProps {
   onOpenChat?: () => void;
+  onToggleMobileMenu?: () => void;
+  isMobileMenuOpen?: boolean;
 }
 
-export function Topbar({ onOpenChat }: TopbarProps) {
+export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: TopbarProps) {
   const { currentUser, updateUserStatus, logout } = useAuth();
   const { totalUnreadChatCount } = useChat();
   const { getUserTodayAttendance, reports, requests } = useAppData();
@@ -31,6 +34,7 @@ export function Topbar({ onOpenChat }: TopbarProps) {
   // Digital clock
   useEffect(() => {
     const updateTime = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     };
@@ -77,24 +81,35 @@ export function Topbar({ onOpenChat }: TopbarProps) {
   return (
     <>
       <header className="sticky top-0 z-40 w-full liquid-glass border-b border-slate-200/80 dark:border-white/10 px-4 lg:px-6 py-2.5 transition-colors duration-300">
-        <div className="flex items-center justify-between gap-4">
-          {/* Logo & Branding */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-[3px] bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-600 p-[1px] shadow-[0_0_15px_rgba(14,165,233,0.35)]">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          {/* Logo, Branding & Mobile Hamburger */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {onToggleMobileMenu && (
+              <button
+                type="button"
+                onClick={onToggleMobileMenu}
+                className="lg:hidden p-2 rounded-[3px] liquid-glass border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:text-sky-600 transition-colors shadow-sm"
+                title={isMobileMenuOpen ? "Close Menu" : "Open Menu"}
+              >
+                {isMobileMenuOpen ? <CloseIcon className="w-4 h-4 text-rose-500" /> : <Menu className="w-4 h-4" />}
+              </button>
+            )}
+
+            <div className="w-8 h-8 rounded-[3px] bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-600 p-[1px] shadow-[0_0_15px_rgba(14,165,233,0.35)] shrink-0">
               <div className="w-full h-full bg-white dark:bg-slate-950 rounded-[2px] flex items-center justify-center">
                 <span className="text-sky-600 dark:text-cyan-400 font-mono font-black text-sm tracking-tighter">QX</span>
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold tracking-wider text-sm bg-gradient-to-r from-slate-900 via-slate-800 to-slate-600 dark:from-white dark:via-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-extrabold tracking-wider text-xs sm:text-sm bg-gradient-to-r from-slate-900 via-slate-800 to-slate-600 dark:from-white dark:via-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
                   quickslogx
                 </span>
-                <span className="px-1.5 py-0.2 text-[10px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
+                <span className="px-1.5 py-0.2 text-[9px] sm:text-[10px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
                   OS 2.6
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tight hidden sm:block">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tight hidden md:block">
                 Liquid Glass Enterprise HRMS
               </p>
             </div>
@@ -112,7 +127,10 @@ export function Topbar({ onOpenChat }: TopbarProps) {
           </div>
 
           {/* Right Action Icons & Profile */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Desktop App Install Button */}
+            <PwaInstallButton variant="topbar" />
+
             {/* Light / Dark Mode Toggle */}
             <motion.button
               whileTap={{ scale: 0.92 }}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import {
   Project,
   Task,
@@ -130,6 +130,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
   const [payslips, setPayslips] = useState<Payslip[]>(initialPayslips);
   const [policy, setPolicy] = useState<CompanyPolicy>(initialCompanyPolicy);
+  const isSyncingRef = useRef(false);
+  const lastSyncTimeRef = useRef(Date.now());
 
   // Hydrate state from localStorage on load, then sync with Supabase cloud
   useEffect(() => {
@@ -263,8 +265,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Failsafe background sync polling (every 4 seconds) to guarantee consistency
-    const pollInterval = setInterval(async () => {
+    // Smart background sync polling (runs gently every 25s only when tab is visible, preventing network contention)
+    const performGentleSync = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
       try {
         const [cloudTasks, cloudAttendance, cloudAnnouncements, cloudRequests, cloudReports, cloudProjects] = await Promise.all([
           fetchCollectionFromSupabase<Task[]>(STORAGE_KEYS.TASKS),
@@ -293,12 +298,34 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (cloudProjects && Array.isArray(cloudProjects)) {
           setProjects(prev => cloudProjects.length !== prev.length ? (saveToStorage(STORAGE_KEYS.PROJECTS, cloudProjects), cloudProjects) : prev);
         }
-      } catch {}
-    }, 4000);
+        lastSyncTimeRef.current = Date.now();
+      } catch {} finally {
+        isSyncingRef.current = false;
+      }
+    };
+
+    const pollInterval = setInterval(performGentleSync, 25000);
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        if (Date.now() - lastSyncTimeRef.current > 15000) {
+          performGentleSync();
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleVisibilityOrFocus);
+      document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    }
 
     return () => {
       unsubscribeRealtime();
       clearInterval(pollInterval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      }
     };
   }, []);
 

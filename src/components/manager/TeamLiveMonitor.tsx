@@ -13,10 +13,10 @@ export function TeamLiveMonitor() {
   const { users } = useAuth();
   const { tasks, projects, updateTaskStatus } = useAppData();
 
-  // Tick timer every second for active timers
+  // Tick timer every 10 seconds for active timers (lightweight, zero UI lag)
   const [, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    const timer = setInterval(() => setTick(t => t + 1), 10000);
     return () => clearInterval(timer);
   }, []);
 

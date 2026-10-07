@@ -48,6 +48,7 @@ function HRMSPortalContent() {
   const { currentUser, isAuthenticated } = useAuth();
   const [currentView, setCurrentView] = useState<PortalView>('admin_overview');
   const [unifiedTab, setUnifiedTab] = useState<'manager' | 'hr'>('manager');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Dynamically update view when role switches
   useEffect(() => {
@@ -135,18 +136,27 @@ function HRMSPortalContent() {
       <AmbientBackground />
 
       {/* Floating Crystal Topbar */}
-      <Topbar onOpenChat={() => setCurrentView('team_chat')} />
+      <Topbar
+        onOpenChat={() => setCurrentView('team_chat')}
+        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMobileMenuOpen={mobileMenuOpen}
+      />
 
       {/* Main Body with Sidebar & Content */}
-      <div className="flex-1 flex relative z-10">
+      <div className="flex-1 flex relative z-10 w-full min-w-0">
         <Sidebar
           currentView={currentView}
-          onSelectView={setCurrentView}
+          onSelectView={(view) => {
+            setCurrentView(view);
+            setMobileMenuOpen(false);
+          }}
           unifiedWorkspaceTab={unifiedTab}
           onSelectUnifiedTab={setUnifiedTab}
+          mobileOpen={mobileMenuOpen}
+          onCloseMobile={() => setMobileMenuOpen(false)}
         />
 
-        <main className="flex-1 p-4 lg:p-7 max-w-7xl mx-auto w-full overflow-y-auto">
+        <main className="flex-1 p-3 sm:p-5 lg:p-7 max-w-7xl mx-auto w-full min-w-0 overflow-y-auto">
           {renderView()}
         </main>
       </div>

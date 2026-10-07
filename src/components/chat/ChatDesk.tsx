@@ -23,7 +23,8 @@ import {
   Sparkles,
   ShieldCheck,
   Smile,
-  Info
+  Info,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatChatTimestamp } from '@/lib/utils';
@@ -213,7 +214,7 @@ export function ChatDesk() {
         {/* ======================================================== */}
         {/* LEFT PANE: GROUPS LIST & PENDING INVITATIONS             */}
         {/* ======================================================== */}
-        <div className="w-full md:w-80 lg:w-96 border-r border-slate-200/80 dark:border-white/10 flex flex-col bg-slate-50/50 dark:bg-slate-950/40 shrink-0">
+        <div className={`w-full md:w-80 lg:w-96 border-r border-slate-200/80 dark:border-white/10 flex flex-col bg-slate-50/50 dark:bg-slate-950/40 shrink-0 ${activeGroupId ? 'hidden md:flex' : 'flex'}`}>
           {/* Search bar */}
           <div className="p-3 border-b border-slate-200/80 dark:border-white/10 space-y-2">
             <div className="relative">
@@ -347,12 +348,20 @@ export function ChatDesk() {
         {/* ======================================================== */}
         {/* RIGHT PANE: ACTIVE CHAT CONVERSATION                     */}
         {/* ======================================================== */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 min-w-0">
+        <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 min-w-0 ${!activeGroupId ? 'hidden md:flex' : 'flex'}`}>
           {activeGroup ? (
             <>
               {/* Chat Header */}
               <div className="p-3.5 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-950/40">
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveGroupId(null)}
+                    className="md:hidden p-1.5 rounded-[2px] bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-sky-600 transition-colors shrink-0"
+                    title="Back to Conversations"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
                   <div className="w-10 h-10 rounded-[3px] bg-gradient-to-br from-sky-500 to-indigo-600 text-white font-mono font-black text-sm flex items-center justify-center shrink-0">
                     {activeGroup.name.slice(0, 2).toUpperCase()}
                   </div>

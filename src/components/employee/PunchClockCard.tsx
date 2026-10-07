@@ -49,6 +49,7 @@ export function PunchClockCard() {
 
   useEffect(() => {
     const updateTime = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       setCurrentDateFormatted(

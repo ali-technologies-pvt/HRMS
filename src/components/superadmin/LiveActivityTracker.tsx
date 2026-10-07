@@ -46,10 +46,10 @@ export function LiveActivityTracker() {
   // Selected employee for deep-dive Telemetry Inspector modal
   const [inspectEmployee, setInspectEmployee] = useState<User | null>(null);
 
-  // Tick timer every second for active tasks
+  // Tick timer every 10 seconds for active tasks (zero lag)
   const [, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    const timer = setInterval(() => setTick(t => t + 1), 10000);
     return () => clearInterval(timer);
   }, []);
 

@@ -274,7 +274,7 @@ export function FloatingChatWidget() {
             }}
             exit={{ opacity: 0, scale: 0.92, y: 30 }}
             transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-            className="fixed bottom-20 right-6 z-50 w-[360px] sm:w-[410px] bg-white dark:bg-[#0f1422] border border-slate-200/90 dark:border-white/10 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden"
+            className="fixed inset-x-2 bottom-20 sm:inset-auto sm:right-6 sm:bottom-20 z-50 w-auto sm:w-[410px] max-w-[calc(100vw-16px)] max-h-[82vh] sm:max-h-[580px] bg-white dark:bg-[#0f1422] border border-slate-200/90 dark:border-white/10 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden"
           >
             {/* ======================================================== */}
             {/* VIEW A: CHAT LIST SCREEN (WhatsApp Home Style)           */}

@@ -53,6 +53,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [desktopPushStatus, setDesktopPushStatus] = useState<NotificationPermission>('default');
   const [isLoaded, setIsLoaded] = useState(false);
   const deletedIdsRef = useRef<Set<string>>(new Set());
+  const isChatPollingRef = useRef(false);
+  const lastChatSyncRef = useRef(Date.now());
 
   // Initialize storage & cloud sync
   useEffect(() => {
@@ -282,8 +284,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // 3. High-frequency background sync polling (every 3 seconds)
-    const pollInterval = setInterval(async () => {
+    // 3. Gentle background sync polling (runs every 20s when visible, guarded to avoid blocking Chrome)
+    const performChatSync = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (isChatPollingRef.current) return;
+      isChatPollingRef.current = true;
       try {
         const [cloudMessages, cloudGroups, cloudDeleted] = await Promise.all([
           fetchCollectionFromSupabase<ChatMessage[]>(STORAGE_KEYS.CHAT_MESSAGES),
@@ -345,13 +350,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             return prev;
           });
         }
-      } catch {}
-    }, 3000);
+        lastChatSyncRef.current = Date.now();
+      } catch {} finally {
+        isChatPollingRef.current = false;
+      }
+    };
+
+    const pollInterval = setInterval(performChatSync, 20000);
+
+    const handleChatFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        if (Date.now() - lastChatSyncRef.current > 15000) {
+          performChatSync();
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleChatFocus);
+      document.addEventListener('visibilitychange', handleChatFocus);
+    }
 
     return () => {
       unsubscribeChatMsg();
       unsubscribeCollections();
       clearInterval(pollInterval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleChatFocus);
+        document.removeEventListener('visibilitychange', handleChatFocus);
+      }
     };
   }, [currentUser?.id]);
 
