@@ -1,16 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -50,7 +53,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#f4f6fb] dark:bg-[#080a11] text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300`}
+        className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} font-sans antialiased bg-[#f6f8fc] dark:bg-[#07090e] text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300`}
       >
         {children}
         <script

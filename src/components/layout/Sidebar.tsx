@@ -150,50 +150,6 @@ export function Sidebar({
     item.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Group items (Colored circles as shown in the reference UI)
-  const groupItems = [
-    {
-      id: 'active_projects',
-      label: 'Active Projects',
-      color: 'bg-emerald-500',
-      action: () => {
-        if (isSuperAdmin) onSelectView('admin_company_setup');
-        else if (isUnified) onSelectView('manager_tasks');
-        else onSelectView('emp_tasks');
-      },
-      count: projects.filter(p => p.status !== 'withdrawn').length
-    },
-    {
-      id: 'reports_desk',
-      label: 'Reports Desk',
-      color: 'bg-blue-500',
-      action: () => {
-        if (isSuperAdmin) onSelectView('admin_overview');
-        else if (isUnified) onSelectView('manager_eod_desk');
-        else onSelectView('emp_attendance');
-      }
-    },
-    {
-      id: 'clearances',
-      label: 'Clearances',
-      color: 'bg-rose-500',
-      action: () => {
-        if (isUnified) onSelectView('manager_approvals');
-        else onSelectView('emp_requests');
-      },
-      count: pendingRequestsCount > 0 ? pendingRequestsCount : undefined
-    },
-    {
-      id: 'policies',
-      label: 'Office Policies',
-      color: 'bg-amber-500',
-      action: () => {
-        if (isSuperAdmin) onSelectView('admin_company_setup');
-        else if (isUnified) onSelectView('manager_dashboard');
-        else onSelectView('emp_noticeboard');
-      }
-    }
-  ];
 
   return (
     <>
@@ -390,54 +346,6 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* ======================================================== */}
-        {/* 3. "GROUP" SECTION (Colored Dots & Chevron Links)        */}
-        {/* ======================================================== */}
-        <div className="space-y-1 pt-1">
-          {/* "Group" Category Label */}
-          <div className={`px-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider ${isCollapsed ? 'text-center text-[9px]' : ''}`}>
-            Group
-          </div>
-
-          <div className="space-y-0.5">
-            {groupItems.map((grp) => {
-              if (isCollapsed) {
-                return (
-                  <button
-                    key={grp.id}
-                    onClick={grp.action}
-                    title={grp.label}
-                    className="w-10 h-8 mx-auto rounded-[4px] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-all"
-                  >
-                    <span className={`w-2.5 h-2.5 rounded-full ${grp.color} inline-block shadow-xs`} />
-                  </button>
-                );
-              }
-
-              return (
-                <button
-                  key={grp.id}
-                  onClick={grp.action}
-                  className="w-full text-left px-3 py-2 rounded-[6px] transition-all flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/[0.04] group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`w-2.5 h-2.5 rounded-full ${grp.color} inline-block shrink-0 shadow-xs`} />
-                    <span className="font-medium tracking-wide">{grp.label}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {grp.count !== undefined && (
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {grp.count}
-                      </span>
-                    )}
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors" />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* ======================================================== */}
@@ -628,39 +536,7 @@ export function Sidebar({
                 </div>
               </div>
 
-              {/* WORKSPACES & SHORTCUTS */}
-              <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-white/5">
-                <div className="px-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Workspaces
-                </div>
 
-                <div className="space-y-1">
-                  {groupItems.map((grp) => (
-                    <button
-                      key={grp.id}
-                      onClick={() => {
-                        grp.action();
-                        onCloseMobile?.();
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-[6px] transition-all flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2.5 h-2.5 rounded-full ${grp.color} inline-block shrink-0 shadow-xs`} />
-                        <span className="font-medium tracking-wide">{grp.label}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {grp.count !== undefined && (
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {grp.count}
-                          </span>
-                        )}
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Mobile Footer with PWA Install & Security clearance */}

@@ -219,24 +219,37 @@ export function ExitClearanceModal({ isOpen, onClose, onConfirmLogout }: ExitCle
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/80 dark:border-white/10">
+              <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                  onClick={() => {
+                    onClose();
+                    onConfirmLogout();
+                  }}
+                  className="px-3 py-2 text-xs font-mono text-slate-400 hover:text-rose-500 transition-colors"
                 >
-                  Stay in Portal
+                  Direct Sign Out
                 </button>
 
-                <LiquidButton
-                  variant="primary"
-                  size="md"
-                  icon={<Send className="w-4 h-4" />}
-                  onClick={handleEmployeeClearanceAndLogout}
-                  className="font-bold text-xs"
-                >
-                  Submit Report, Punch Out & Logout
-                </LiquidButton>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                  >
+                    Stay in Portal
+                  </button>
+
+                  <LiquidButton
+                    variant="primary"
+                    size="md"
+                    icon={<Send className="w-4 h-4" />}
+                    onClick={handleEmployeeClearanceAndLogout}
+                    className="font-bold text-xs"
+                  >
+                    Submit Report, Punch Out & Logout
+                  </LiquidButton>
+                </div>
               </div>
             </div>
           )}
@@ -304,26 +317,39 @@ export function ExitClearanceModal({ isOpen, onClose, onConfirmLogout }: ExitCle
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/80 dark:border-white/10">
+              <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                  onClick={() => {
+                    onClose();
+                    onConfirmLogout();
+                  }}
+                  className="px-3 py-2 text-xs font-mono text-slate-400 hover:text-rose-500 transition-colors"
                 >
-                  Review In Dashboard
+                  Direct Sign Out
                 </button>
 
-                <LiquidButton
-                  variant="emerald"
-                  size="md"
-                  icon={<Check className="w-4 h-4" />}
-                  onClick={handleManagerClearanceAndLogout}
-                  className="font-bold text-xs"
-                >
-                  {pendingRequests.length > 0
-                    ? `Approve All (${pendingRequests.length}) & Logout`
-                    : 'Confirm & Complete Logout'}
-                </LiquidButton>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                  >
+                    Review In Dashboard
+                  </button>
+
+                  <LiquidButton
+                    variant="emerald"
+                    size="md"
+                    icon={<Check className="w-4 h-4" />}
+                    onClick={handleManagerClearanceAndLogout}
+                    className="font-bold text-xs"
+                  >
+                    {pendingRequests.length > 0
+                      ? `Approve All (${pendingRequests.length}) & Logout`
+                      : 'Confirm & Complete Logout'}
+                  </LiquidButton>
+                </div>
               </div>
             </div>
           )}

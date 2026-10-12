@@ -492,13 +492,13 @@ export function PunchClockCard() {
 
             {/* Check-In / Check-Out Punch Action Buttons */}
             <div className="pt-6">
-              {!todayRecord ? (
+              {!todayRecord || !todayRecord.clockIn ? (
                 <LiquidButton
                   variant="emerald"
                   size="lg"
                   icon={<LogIn className="w-4 h-4" />}
                   onClick={() => clockIn(currentUser.id)}
-                  className="w-full justify-center shadow-[0_4px_16px_rgba(16,185,129,0.3)] text-sm font-bold"
+                  className="w-full justify-center shadow-[0_4px_16px_rgba(16,185,129,0.3)] text-sm font-bold cursor-pointer"
                 >
                   Punch In / Check-In (Start Shift)
                 </LiquidButton>
@@ -508,14 +508,14 @@ export function PunchClockCard() {
                   size="lg"
                   icon={<LogOut className="w-4 h-4" />}
                   onClick={() => clockOut(currentUser.id)}
-                  className="w-full justify-center shadow-[0_4px_16px_rgba(244,63,94,0.3)] text-sm font-bold"
+                  className="w-full justify-center shadow-[0_4px_16px_rgba(244,63,94,0.3)] text-sm font-bold cursor-pointer"
                 >
                   Punch Out / Check-Out (End Shift)
                 </LiquidButton>
               ) : (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-400/30 text-emerald-800 dark:text-emerald-300 text-center text-xs font-mono font-semibold rounded-[2px] flex items-center justify-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Shift closed for today. All hours recorded!</span>
+                  <span>Shift closed for today at {todayRecord.clockOut}. All hours recorded!</span>
                 </div>
               )}
             </div>

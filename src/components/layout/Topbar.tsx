@@ -7,7 +7,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { useTheme } from '@/context/ThemeContext';
 import { ProfileEditModal } from '../common/ProfileEditModal';
 import { ExitClearanceModal } from '../common/ExitClearanceModal';
-import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare, Menu, X as CloseIcon } from 'lucide-react';
+import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare, Menu, X as CloseIcon, LogIn, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '@/context/ChatContext';
 import { PwaInstallButton } from '../common/PwaInstallButton';
@@ -21,7 +21,7 @@ interface TopbarProps {
 export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: TopbarProps) {
   const { currentUser, updateUserStatus, logout } = useAuth();
   const { totalUnreadChatCount } = useChat();
-  const { getUserTodayAttendance, reports, requests } = useAppData();
+  const { getUserTodayAttendance, reports, requests, clockIn, clockOut } = useAppData();
   const { notifications, markAsRead, clearAll, soundEnabled, setSoundEnabled } = useNotifications();
   const { theme, toggleTheme } = useTheme();
 
@@ -44,11 +44,11 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const todayRecord = currentUser ? getUserTodayAttendance(currentUser.id) : null;
 
   const handleLogoutClick = () => {
     setShowStatusMenu(false);
     const todayStr = new Date().toISOString().split('T')[0];
-    const todayRecord = getUserTodayAttendance(currentUser.id);
 
     // If Employee: check if still clocked in OR hasn't submitted today's report
     if (currentUser.role === 'employee') {
@@ -125,6 +125,39 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
               SYSTEM ACTIVE
             </span>
           </div>
+
+          {/* 1-Click Shift Punch In / Out Quick Pill */}
+          {currentUser && currentUser.role !== 'super_admin' && (
+            <div className="flex items-center">
+              {!todayRecord?.clockIn ? (
+                <button
+                  type="button"
+                  onClick={() => clockIn(currentUser.id)}
+                  title="Instant 1-Click Shift Check-In"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 rounded-[3px] text-xs font-mono font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Check-In</span>
+                </button>
+              ) : !todayRecord?.clockOut ? (
+                <button
+                  type="button"
+                  onClick={() => clockOut(currentUser.id)}
+                  title={`Clocked in at ${todayRecord.clockIn}. Click to Punch Out.`}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-700 dark:text-rose-300 rounded-[3px] text-xs font-mono font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                  <span className="hidden sm:inline">Punch Out ({todayRecord.clockIn})</span>
+                  <span className="sm:hidden">Punch Out</span>
+                </button>
+              ) : (
+                <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-slate-500/10 border border-slate-500/20 text-slate-600 dark:text-slate-400 rounded-[3px] text-xs font-mono font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Shift Closed ({todayRecord.clockOut})</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Right Action Icons & Profile */}
           <div className="flex items-center gap-1.5 sm:gap-2">

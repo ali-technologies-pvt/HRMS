@@ -95,21 +95,19 @@ export function DailyAttendancePopup() {
               </div>
             </div>
 
-            {!isEmployee && (
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                title="Dismiss for now"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+              title="Dismiss for now"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
             {isEmployee
-              ? "Welcome back! Daily check-in is required before beginning your workday to unlock today's assigned tasks and track punctuality."
+              ? "Welcome back! Daily check-in records your shift arrival, unlocks your task milestones, and maintains your punctuality score."
               : "Your shift attendance has not been registered yet today. Please record your daily Check-In to commence work tracking and maintain punctuality scores."}
           </p>
 
@@ -134,19 +132,13 @@ export function DailyAttendancePopup() {
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200/80 dark:border-white/10">
-            {!isEmployee ? (
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white"
-              >
-                Remind Me Later
-              </button>
-            ) : (
-              <div className="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                <span>● Mandatory Clock-In</span>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+            >
+              Remind Me Later
+            </button>
 
             <LiquidButton
               variant="emerald"

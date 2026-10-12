@@ -29,8 +29,8 @@ const config: Config = {
         }
       },
       fontFamily: {
-        sans: ["var(--font-geist-sans)", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "monospace"],
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       animation: {
         'liquid-pulse': 'liquidPulse 8s ease-in-out infinite',
