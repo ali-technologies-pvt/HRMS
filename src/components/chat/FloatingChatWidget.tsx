@@ -29,7 +29,8 @@ import {
   Phone,
   Video,
   MoreVertical,
-  Check as SingleCheck
+  Check as SingleCheck,
+  Bell
 } from 'lucide-react';
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '👏', '😊', '🚀', '✅', '🙏'];
@@ -46,11 +47,16 @@ export function FloatingChatWidget() {
     editMessage,
     deleteMessage,
     activeGroupMessages,
-    totalUnreadChatCount
+    desktopPushStatus,
+    enableDesktopPush,
+    markGroupAsRead,
+    getGroupUnreadCount,
+    totalUnreadChatCount,
+    isChatOpen: isOpen,
+    setIsChatOpen: setIsOpen
   } = useChat();
   const { showNotification } = useNotifications();
 
-  const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messageText, setMessageText] = useState('');
   
@@ -97,6 +103,14 @@ export function FloatingChatWidget() {
       }, 100);
     }
   }, [isOpen, isMinimized, currentView, activeGroupId]);
+
+  // Automatically mark conversation as read when active in view
+  useEffect(() => {
+    if (isOpen && !isMinimized && currentView === 'chat' && activeGroupId) {
+      markGroupAsRead(activeGroupId);
+    }
+  }, [isOpen, isMinimized, currentView, activeGroupId, markGroupAsRead, activeGroupMessages.length]);
+
 
   if (!currentUser) return null;
 
@@ -293,6 +307,16 @@ export function FloatingChatWidget() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      onClick={enableDesktopPush}
+                      title={desktopPushStatus === 'granted' ? 'Sound & push notifications active' : 'Turn on desktop sound & push alerts'}
+                      className={`p-1.5 rounded-full transition-colors ${
+                        desktopPushStatus === 'granted' ? 'text-emerald-200 hover:bg-white/15' : 'text-amber-300 hover:bg-white/20 animate-pulse'
+                      }`}
+                    >
+                      <Bell className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setShowNewChatModal(true)}
                       title="New Chat"
                       className="p-1.5 rounded-full hover:bg-white/15 text-white transition-colors"
@@ -317,6 +341,23 @@ export function FloatingChatWidget() {
                     </button>
                   </div>
                 </div>
+
+                {/* Instant Notification Permission Ribbon */}
+                {desktopPushStatus !== 'granted' && (
+                  <div className="px-3 py-1.5 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-teal-500/15 border-b border-amber-500/20 flex items-center justify-between gap-2 text-[11px] shrink-0">
+                    <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+                      <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-bounce" />
+                      <span className="font-medium text-[10px]">Enable sound & push notifications</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={enableDesktopPush}
+                      className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-md shadow-xs transition-colors shrink-0"
+                    >
+                      Turn On
+                    </button>
+                  </div>
+                )}
 
                 {/* Search Bar */}
                 <div className="p-2.5 bg-white dark:bg-[#0f1422] border-b border-slate-200/80 dark:border-white/10 shrink-0">
@@ -385,15 +426,21 @@ export function FloatingChatWidget() {
                       const avatar = isDirect ? (otherUser?.avatarUrl || grp.avatar) : grp.avatar;
                       const title = isDirect ? (otherUser?.name || grp.name) : grp.name;
                       const subtitle = grp.lastMessage?.text || (isDirect ? otherUser?.designation || 'Direct Chat' : grp.description);
+                      const unreadCount = getGroupUnreadCount(grp.id);
 
                       return (
                         <div
                           key={grp.id}
                           onClick={() => {
                             setActiveGroupId(grp.id);
+                            markGroupAsRead(grp.id);
                             setCurrentView('chat');
                           }}
-                          className="p-3 hover:bg-emerald-50/50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer flex items-center gap-3"
+                          className={`p-3 transition-colors cursor-pointer flex items-center gap-3 ${
+                            unreadCount > 0
+                              ? 'bg-emerald-50/70 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/30'
+                              : 'hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]'
+                          }`}
                         >
                           {/* Avatar */}
                           <div className="relative shrink-0">
@@ -420,19 +467,26 @@ export function FloatingChatWidget() {
                           {/* Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
-                              <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              <h4 className={`text-xs truncate ${unreadCount > 0 ? 'font-black text-slate-900 dark:text-white' : 'font-bold text-slate-900 dark:text-white'}`}>
                                 {isDirect ? title : `#${title}`}
                               </h4>
                               {grp.lastMessage?.timestamp && (
-                                <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                                <span className={`text-[10px] font-mono shrink-0 ${unreadCount > 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
                                   {grp.lastMessage.timestamp}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                              {grp.lastMessage?.senderName && isDirect ? '' : grp.lastMessage?.senderName ? `${grp.lastMessage.senderName}: ` : ''}
-                              {subtitle}
-                            </p>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <p className={`text-[11px] truncate flex-1 ${unreadCount > 0 ? 'text-slate-900 dark:text-slate-100 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                                {grp.lastMessage?.senderName && isDirect ? '' : grp.lastMessage?.senderName ? `${grp.lastMessage.senderName}: ` : ''}
+                                {subtitle}
+                              </p>
+                              {unreadCount > 0 && (
+                                <span className="shrink-0 px-1.5 py-0.5 min-w-[18px] text-center bg-emerald-500 text-white text-[10px] font-mono font-bold rounded-full shadow-xs animate-pulse">
+                                  {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -507,6 +561,16 @@ export function FloatingChatWidget() {
 
                   {/* Header actions */}
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={enableDesktopPush}
+                      title={desktopPushStatus === 'granted' ? 'Sound & push notifications active' : 'Turn on desktop sound & push alerts'}
+                      className={`p-1.5 rounded-full transition-colors ${
+                        desktopPushStatus === 'granted' ? 'text-emerald-200 hover:bg-white/15' : 'text-amber-300 hover:bg-white/20 animate-pulse'
+                      }`}
+                    >
+                      <Bell className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsMinimized(true)}
@@ -776,6 +840,11 @@ export function FloatingChatWidget() {
                   <span className="text-xs font-bold">
                     {currentView === 'chat' ? (activeGroup?.isDirect ? activeGroup.name : `#${activeGroup?.name}`) : 'Chats'}
                   </span>
+                  {totalUnreadChatCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-mono font-bold rounded-full animate-bounce shadow-xs">
+                      {totalUnreadChatCount}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

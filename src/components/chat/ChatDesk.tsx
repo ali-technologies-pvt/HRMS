@@ -53,7 +53,9 @@ export function ChatDesk() {
     activeGroupMessages,
     pendingInvitations,
     desktopPushStatus,
-    enableDesktopPush
+    enableDesktopPush,
+    markGroupAsRead,
+    getGroupUnreadCount
   } = useChat();
   const { showNotification } = useNotifications();
 
@@ -82,6 +84,13 @@ export function ChatDesk() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeGroupMessages]);
+
+  // Mark channel as read when opened in ChatDesk
+  useEffect(() => {
+    if (activeGroupId) {
+      markGroupAsRead(activeGroupId);
+    }
+  }, [activeGroupId, markGroupAsRead, activeGroupMessages.length]);
 
   const activeGroup = groups.find(g => g.id === activeGroupId);
 
@@ -292,6 +301,7 @@ export function ChatDesk() {
                   .slice(0, 2)
                   .join('')
                   .toUpperCase();
+                const unreadCount = getGroupUnreadCount(grp.id);
 
                 return (
                   <button
@@ -301,6 +311,8 @@ export function ChatDesk() {
                     className={`w-full p-3 text-left transition-all flex items-start gap-3 ${
                       isSelected
                         ? 'bg-sky-500/10 dark:bg-sky-500/15 border-l-4 border-sky-500 text-slate-900 dark:text-white'
+                        : unreadCount > 0
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-slate-900 dark:text-white'
                         : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-300'
                     }`}
                   >
@@ -315,7 +327,7 @@ export function ChatDesk() {
                           {grp.name}
                         </span>
                         {grp.lastMessage && (
-                          <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                          <span className={`text-[10px] font-mono shrink-0 ${unreadCount > 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
                             {grp.lastMessage.timestamp}
                           </span>
                         )}
@@ -331,11 +343,16 @@ export function ChatDesk() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 mt-1">
+                      <div className="flex items-center justify-between gap-1.5 mt-1">
                         <span className="text-[10px] font-mono text-sky-600 dark:text-cyan-400 flex items-center gap-1">
                           <Users className="w-2.5 h-2.5" />
                           {grp.memberIds.length} member{grp.memberIds.length > 1 ? 's' : ''}
                         </span>
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.5 min-w-[18px] text-center bg-emerald-500 text-white text-[10px] font-mono font-bold rounded-full shadow-xs animate-pulse">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>

@@ -84,22 +84,55 @@ export function formatCurrency(amount: number): string {
   return `PKR ${Number(amount || 0).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
 }
 
-// Gentle Web Audio API synthesizer for Apple-like glassy UI feedback
-export function playGlassChime(type: 'click' | 'success' | 'alert' | 'timer' = 'click') {
+// Singleton Web Audio API synthesizer for responsive, crisp feedback across browser sessions
+let sharedAudioCtx: AudioContext | null = null;
+
+export function getSharedAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioContextClass();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+// Auto-unlock AudioContext on first user interaction in browser
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  };
+  ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, unlockAudio, { once: true, passive: true });
+  });
+}
+
+export function playGlassChime(type: 'click' | 'success' | 'alert' | 'timer' | 'message' = 'click') {
   if (typeof window === 'undefined') return;
   try {
-    const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
     const now = ctx.currentTime;
 
     if (type === 'click') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
       osc.type = 'sine';
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.exponentialRampToValueAtTime(400, now + 0.04);
@@ -108,6 +141,10 @@ export function playGlassChime(type: 'click' | 'success' | 'alert' | 'timer' = '
       osc.start(now);
       osc.stop(now + 0.04);
     } else if (type === 'success') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(523.25, now); // C5
       osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
@@ -116,15 +153,39 @@ export function playGlassChime(type: 'click' | 'success' | 'alert' | 'timer' = '
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
       osc.start(now);
       osc.stop(now + 0.35);
-    } else if (type === 'alert') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.setValueAtTime(440, now + 0.1);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-      osc.start(now);
-      osc.stop(now + 0.25);
+    } else if (type === 'alert' || type === 'message') {
+      // Crisp 2-tone melodic notification chime (like WhatsApp / iMessage incoming alert)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      const gain2 = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+
+      // Tone 1: 880Hz (A5)
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.22, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.28);
+
+      // Tone 2: 1318.5Hz (E6) bright second bell note offset by 90ms
+      osc2.frequency.setValueAtTime(1318.5, now + 0.09);
+      gain2.gain.setValueAtTime(0.001, now);
+      gain2.gain.setValueAtTime(0.28, now + 0.09);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.09);
+      osc2.stop(now + 0.45);
     } else if (type === 'timer') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
       osc.type = 'sine';
       osc.frequency.setValueAtTime(1046.5, now); // C6
       gain.gain.setValueAtTime(0.1, now);
@@ -136,3 +197,8 @@ export function playGlassChime(type: 'click' | 'success' | 'alert' | 'timer' = '
     // Ignore audio context errors if blocked by browser policy
   }
 }
+
+export function playIncomingChatSound() {
+  playGlassChime('message');
+}
+

@@ -1,12 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { ChatGroup, ChatMessage, GroupInvitation, User } from '@/types';
 import { initialChatGroups, initialChatMessages } from '@/lib/initialData';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
-import { playGlassChime } from '@/lib/utils';
+import { playGlassChime, playIncomingChatSound } from '@/lib/utils';
 import {
   sendDesktopPushNotification,
   requestNotificationPermission,
@@ -38,7 +38,11 @@ interface ChatContextType {
   pendingInvitations: GroupInvitation[];
   desktopPushStatus: NotificationPermission;
   enableDesktopPush: () => Promise<void>;
+  markGroupAsRead: (groupId: string) => void;
+  getGroupUnreadCount: (groupId: string) => number;
   totalUnreadChatCount: number;
+  isChatOpen: boolean;
+  setIsChatOpen: (open: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -51,10 +55,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [desktopPushStatus, setDesktopPushStatus] = useState<NotificationPermission>('default');
+  const [readReceipts, setReadReceipts] = useState<Record<string, string>>({});
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const deletedIdsRef = useRef<Set<string>>(new Set());
   const isChatPollingRef = useRef(false);
   const lastChatSyncRef = useRef(Date.now());
+  const isChatOpenRef = useRef(false);
+  const activeGroupIdRef = useRef<string | null>(null);
+  const groupsRef = useRef<ChatGroup[]>(initialChatGroups);
+
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen;
+  }, [isChatOpen]);
+
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
+
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
+
+  // Load user read receipts on auth change
+  useEffect(() => {
+    if (currentUser?.id) {
+      const receipts = loadFromStorage<Record<string, string>>(
+        `${STORAGE_KEYS.CHAT_READ_RECEIPTS}_${currentUser.id}`,
+        {}
+      );
+      setReadReceipts(receipts);
+    }
+  }, [currentUser?.id]);
 
   // Initialize storage & cloud sync
   useEffect(() => {
@@ -225,11 +257,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      // Sound chime and push notification on other device
-      playGlassChime('alert');
-      sendDesktopPushNotification(incomingMsg.senderName || 'Team Chat', {
-        body: `${incomingMsg.senderName}: ${incomingMsg.imageUrl ? '📷 Image shared' : incomingMsg.text}`,
-        tag: incomingMsg.groupId
+      // If active conversation is currently open and in focus, mark as read immediately
+      if (
+        isChatOpenRef.current &&
+        activeGroupIdRef.current === incomingMsg.groupId &&
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'visible'
+      ) {
+        if (currentUser?.id) {
+          const nowIso = new Date().toISOString();
+          setReadReceipts(prev => {
+            const next = { ...prev, [incomingMsg.groupId]: nowIso };
+            saveToStorage(`${STORAGE_KEYS.CHAT_READ_RECEIPTS}_${currentUser.id}`, next);
+            return next;
+          });
+        }
+      }
+
+      // 1. Play crystal-clear glass chime alert
+      playIncomingChatSound();
+
+      // 2. Resolve clean group or sender title for push notification
+      const targetGroup = groupsRef.current.find(g => g.id === incomingMsg.groupId);
+      const notifTitle = targetGroup?.isDirect
+        ? (incomingMsg.senderName || 'Direct Message')
+        : (targetGroup ? `#${targetGroup.name}` : (incomingMsg.senderName || 'Team Chat'));
+
+      // 3. Desktop Native Push Notification
+      sendDesktopPushNotification(notifTitle, {
+        body: `${incomingMsg.senderName}: ${incomingMsg.imageUrl ? '📷 [Image shared]' : incomingMsg.text}`,
+        tag: incomingMsg.groupId,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: { groupId: incomingMsg.groupId }
       });
     });
 
@@ -808,13 +868,64 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     currentUser ? g.memberIds.includes(currentUser.id) || g.createdBy === currentUser.id : true
   );
 
+  const markGroupAsRead = useCallback((groupId: string) => {
+    if (!currentUser?.id || !groupId) return;
+    const nowIso = new Date().toISOString();
+    setReadReceipts(prev => {
+      const next = { ...prev, [groupId]: nowIso };
+      saveToStorage(`${STORAGE_KEYS.CHAT_READ_RECEIPTS}_${currentUser.id}`, next);
+      return next;
+    });
+  }, [currentUser?.id]);
+
+  const getGroupUnreadCount = useCallback((groupId: string): number => {
+    if (!currentUser?.id || !groupId) return 0;
+    const lastReadIso = readReceipts[groupId];
+    const lastReadTime = lastReadIso ? new Date(lastReadIso).getTime() : 0;
+
+    return messages.filter(m => {
+      if (m.groupId !== groupId) return false;
+      if (m.isDeleted || deletedIdsRef.current.has(m.id)) return false;
+      if (m.senderId === currentUser.id) return false;
+      if (m.isSystem) return false;
+      const msgTime = new Date(m.createdAt || m.timestamp).getTime();
+      if (isNaN(msgTime)) return false;
+      return msgTime > lastReadTime;
+    }).length;
+  }, [currentUser?.id, readReceipts, messages]);
+
+  const totalUnreadChatCount = useMemo(() => {
+    if (!currentUser) return 0;
+    let unreadCount = 0;
+    visibleGroups.forEach(g => {
+      unreadCount += getGroupUnreadCount(g.id);
+    });
+    return unreadCount + pendingInvitations.length;
+  }, [currentUser, visibleGroups, getGroupUnreadCount, pendingInvitations]);
+
+  const handleSetActiveGroupId = useCallback((id: string | null) => {
+    setActiveGroupId(id);
+    activeGroupIdRef.current = id;
+    if (id) {
+      markGroupAsRead(id);
+    }
+  }, [markGroupAsRead]);
+
+  const handleSetIsChatOpen = useCallback((open: boolean) => {
+    setIsChatOpen(open);
+    isChatOpenRef.current = open;
+    if (open && activeGroupIdRef.current) {
+      markGroupAsRead(activeGroupIdRef.current);
+    }
+  }, [markGroupAsRead]);
+
   return (
     <ChatContext.Provider
       value={{
         groups: visibleGroups,
         messages,
         activeGroupId,
-        setActiveGroupId,
+        setActiveGroupId: handleSetActiveGroupId,
         createGroup,
         openOrCreateDirectChat,
         inviteMemberByEmail,
@@ -827,7 +938,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pendingInvitations,
         desktopPushStatus,
         enableDesktopPush,
-        totalUnreadChatCount: pendingInvitations.length
+        markGroupAsRead,
+        getGroupUnreadCount,
+        totalUnreadChatCount,
+        isChatOpen,
+        setIsChatOpen: handleSetIsChatOpen
       }}
     >
       {children}
