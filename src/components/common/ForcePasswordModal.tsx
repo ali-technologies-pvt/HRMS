@@ -74,12 +74,12 @@ export function ForcePasswordModal() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-sky-500/15 dark:bg-cyan-500/10 border border-sky-400/30 rounded-[2px] text-sky-600 dark:text-cyan-400">
-              <ShieldAlert className="w-6 h-6 animate-pulse" />
+            <div className="p-1.5 bg-white dark:bg-white/95 rounded-[3px] border border-slate-200/80 dark:border-white/20 shadow-xs shrink-0">
+              <img src="/logo-emblem.png" alt="quickslogix" className="w-7 h-7 object-contain" />
             </div>
             <div>
-              <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">First-Login Protocol</span>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-wide">Compulsory Password Update</h2>
+              <span className="text-[10px] font-mono tracking-widest uppercase text-amber-600 dark:text-amber-400 font-extrabold">First-Login Protocol</span>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-wide">Compulsory Password Update</h2>
             </div>
           </div>
 

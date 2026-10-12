@@ -81,11 +81,11 @@ export function DailyAttendancePopup() {
           {/* Header */}
           <div className="flex items-start justify-between pb-3 border-b border-slate-200/80 dark:border-white/10">
             <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-gradient-to-br from-sky-500 to-blue-600 text-white rounded-[2px] shadow-md shadow-sky-500/20">
-                <Clock className="w-5 h-5 animate-pulse" />
+              <div className="p-1.5 bg-white dark:bg-white/95 rounded-[3px] border border-slate-200/80 dark:border-white/20 shadow-xs shrink-0">
+                <img src="/logo-emblem.png" alt="quickslogix" className="w-6 h-6 object-contain" />
               </div>
               <div>
-                <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold flex items-center gap-1">
+                <span className="text-[10px] font-mono tracking-widest uppercase text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
                   First-Login Verification
                 </span>
@@ -112,8 +112,8 @@ export function DailyAttendancePopup() {
           </p>
 
           {/* Digital Clock Display */}
-          <div className="p-4 bg-gradient-to-b from-sky-500/10 via-sky-500/5 to-transparent border border-sky-300/40 dark:border-cyan-400/20 rounded-[3px] text-center">
-            <div className="text-4xl font-mono font-bold text-slate-900 dark:text-white tracking-wider">
+          <div className="p-3.5 sm:p-4 bg-gradient-to-b from-sky-500/10 via-sky-500/5 to-transparent border border-sky-300/40 dark:border-cyan-400/20 rounded-[3px] text-center">
+            <div className="text-3xl sm:text-4xl font-mono font-bold text-slate-900 dark:text-white tracking-wider">
               {currentTime || '09:00:00 AM'}
             </div>
             <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1">
@@ -131,11 +131,11 @@ export function DailyAttendancePopup() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200/80 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-200/80 dark:border-white/10">
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+              className="px-3 py-2 text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors text-center order-2 sm:order-1"
             >
               Remind Me Later
             </button>
@@ -145,7 +145,7 @@ export function DailyAttendancePopup() {
               size="md"
               icon={<LogIn className="w-4 h-4" />}
               onClick={handlePunchIn}
-              className="shadow-[0_4px_16px_rgba(16,185,129,0.35)] font-bold text-xs"
+              className="shadow-[0_4px_16px_rgba(16,185,129,0.35)] font-bold text-xs justify-center order-1 sm:order-2 w-full sm:w-auto cursor-pointer"
             >
               Check-In Now (Start Shift)
             </LiquidButton>

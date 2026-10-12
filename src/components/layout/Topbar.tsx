@@ -95,23 +95,21 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
               </button>
             )}
 
-            <div className="w-8 h-8 rounded-[3px] bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-600 p-[1px] shadow-[0_0_15px_rgba(14,165,233,0.35)] shrink-0">
-              <div className="w-full h-full bg-white dark:bg-slate-950 rounded-[2px] flex items-center justify-center">
-                <span className="text-sky-600 dark:text-cyan-400 font-mono font-black text-sm tracking-tighter">QX</span>
-              </div>
+            <div className="bg-white dark:bg-white/95 px-2 py-1 rounded-[4px] border border-slate-200/80 dark:border-white/20 shadow-xs flex items-center shrink-0">
+              <img
+                src="/logo.png"
+                alt="quickslogix"
+                className="h-5 sm:h-6.5 w-auto object-contain"
+              />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-extrabold tracking-wider text-xs sm:text-sm bg-gradient-to-r from-slate-900 via-slate-800 to-slate-600 dark:from-white dark:via-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
-                  quickslogx
-                </span>
-                <span className="px-1.5 py-0.2 text-[9px] sm:text-[10px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
-                  OS 2.6
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tight hidden md:block">
-                Liquid Glass Enterprise HRMS
-              </p>
+
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="px-1.5 py-0.5 text-[9px] font-mono uppercase bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-[2px] font-bold">
+                HRMS
+              </span>
+              <span className="px-1.5 py-0.5 text-[9px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
+                OS 2.6
+              </span>
             </div>
           </div>
 
@@ -227,7 +225,7 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="absolute right-0 top-full mt-2 w-80 sm:w-96 liquid-glass-dropdown border border-slate-200 dark:border-white/15 p-3 rounded-[3px] shadow-2xl z-50 max-h-[460px] flex flex-col"
+                      className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] liquid-glass-dropdown border border-slate-200 dark:border-white/15 p-3 rounded-[3px] shadow-2xl z-50 max-h-[460px] flex flex-col"
                     >
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80 dark:border-white/10">
                         <div className="flex items-center gap-2">

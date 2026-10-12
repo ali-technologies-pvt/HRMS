@@ -373,44 +373,47 @@ export function PunchClockCard() {
         </div>
 
         {/* Top Tab Switcher */}
-        <div className="flex items-center p-1 bg-white/70 dark:bg-slate-900/80 border border-slate-200/80 dark:border-white/10 rounded-[3px] shadow-sm">
+        <div className="flex items-center p-1 bg-white/70 dark:bg-slate-900/80 border border-slate-200/80 dark:border-white/10 rounded-[3px] shadow-sm overflow-x-auto max-w-full shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('daily')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all whitespace-nowrap ${
               activeTab === 'daily'
                 ? 'bg-sky-500/20 text-sky-900 dark:text-cyan-300 border border-sky-400/40 dark:border-cyan-400/30'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Punch Terminal & Daily</span>
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Punch Terminal & Daily</span>
+            <span className="sm:hidden">Terminal</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all whitespace-nowrap ${
               activeTab === 'history'
                 ? 'bg-sky-500/20 text-sky-900 dark:text-cyan-300 border border-sky-400/40 dark:border-cyan-400/30'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>3-Month Report</span>
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">3-Month Report</span>
+            <span className="sm:hidden">Reports</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('payslips')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-semibold rounded-[2px] transition-all whitespace-nowrap ${
               activeTab === 'payslips'
                 ? 'bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 border border-emerald-400/40 dark:border-emerald-400/30'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <DollarSign className="w-3.5 h-3.5" />
-            <span>Salary Slips ({myPayslips.length})</span>
+            <DollarSign className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Salary Slips ({myPayslips.length})</span>
+            <span className="sm:hidden">Slips ({myPayslips.length})</span>
           </button>
         </div>
       </div>

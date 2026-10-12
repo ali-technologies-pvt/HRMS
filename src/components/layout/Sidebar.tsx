@@ -185,23 +185,20 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Brand Logo Header: "QUICKSLOGX >" / "QX" */}
+          {/* Brand Logo Header */}
           {isCollapsed ? (
             <button
               type="button"
               onClick={() => setIsCollapsed(false)}
               title="Expand sidebar"
-              className="w-10 h-10 mx-auto rounded-[6px] bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-bold text-xs font-mono shadow-sm group hover:scale-105 transition-all"
+              className="w-10 h-10 mx-auto rounded-[6px] bg-white dark:bg-white/95 border border-slate-200/90 dark:border-white/20 p-1 flex items-center justify-center shadow-xs group hover:scale-105 transition-all"
             >
-              <span>QX</span>
+              <img src="/logo-emblem.png" alt="quickslogix" className="w-7 h-7 object-contain" />
             </button>
           ) : (
             <div className="px-1 flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <span className="font-extrabold tracking-wider text-base text-slate-900 dark:text-white font-sans uppercase">
-                  QUICKSLOGX
-                </span>
-                <span className="text-rose-500 font-black text-base">{'>'}</span>
+              <div className="bg-white dark:bg-white/95 px-2.5 py-1.5 rounded-[4px] border border-slate-200/80 dark:border-white/20 shadow-xs flex items-center w-full">
+                <img src="/logo.png" alt="quickslogix" className="h-7 w-auto object-contain" />
               </div>
             </div>
           )}
@@ -427,11 +424,8 @@ export function Sidebar({
 
                 {/* Brand Logo Header */}
                 <div className="px-1 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="font-extrabold tracking-wider text-base text-slate-900 dark:text-white font-sans uppercase">
-                      QUICKSLOGX
-                    </span>
-                    <span className="text-rose-500 font-black text-base">{'>'}</span>
+                  <div className="bg-white dark:bg-white/95 px-2.5 py-1.5 rounded-[4px] border border-slate-200/80 dark:border-white/20 shadow-xs flex items-center w-full">
+                    <img src="/logo.png" alt="quickslogix" className="h-7 w-auto object-contain" />
                   </div>
                 </div>
 
@@ -505,7 +499,7 @@ export function Sidebar({
                           onSelectView(item.view);
                           onCloseMobile?.();
                         }}
-                        className={`relative w-full text-left px-3 py-2 rounded-[6px] transition-all flex items-center justify-between text-xs ${
+                        className={`relative w-full text-left px-3 py-2.5 min-h-[40px] rounded-[6px] transition-all flex items-center justify-between text-xs ${
                           isActive
                             ? 'bg-slate-100 dark:bg-[#1e2333] text-slate-900 dark:text-white font-bold'
                             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white'

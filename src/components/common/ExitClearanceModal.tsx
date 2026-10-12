@@ -128,16 +128,16 @@ export function ExitClearanceModal({ isOpen, onClose, onConfirmLogout }: ExitCle
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 20 }}
           transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-          className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-amber-400/50 dark:border-amber-500/40 p-6 rounded-[4px] shadow-2xl space-y-4"
+          className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-amber-400/50 dark:border-amber-500/40 p-4 sm:p-6 rounded-[4px] shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="flex items-start justify-between pb-3 border-b border-slate-200/80 dark:border-white/10">
             <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-amber-500/15 border border-amber-400/40 text-amber-600 dark:text-amber-400 rounded-[3px]">
-                <ShieldAlert className="w-5 h-5" />
+              <div className="p-1.5 bg-white dark:bg-white/95 rounded-[3px] border border-slate-200/80 dark:border-white/20 shadow-xs shrink-0">
+                <img src="/logo-emblem.png" alt="quickslogix" className="w-6 h-6 object-contain" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                   Mandatory Exit Clearance Required
                 </h3>
                 <p className="text-xs text-slate-500">

@@ -125,8 +125,8 @@ export function PwaInstallButton({ variant = 'topbar' }: { variant?: 'topbar' | 
               </button>
 
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
-                  <Laptop className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-xl bg-white dark:bg-white/95 p-1.5 flex items-center justify-center border border-slate-200/80 dark:border-white/20 shadow-sm shrink-0">
+                  <img src="/logo-emblem.png" alt="quickslogix" className="w-9 h-9 object-contain" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">

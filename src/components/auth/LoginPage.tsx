@@ -62,24 +62,12 @@ export function LoginPage() {
       {/* Top Bar with Branding & Theme Switcher */}
       <header className="w-full max-w-5xl flex items-center justify-between relative z-10 py-2">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-[3px] bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-600 p-[1px] shadow-[0_0_15px_rgba(14,165,233,0.35)]">
-            <div className="w-full h-full bg-white dark:bg-slate-950 rounded-[2px] flex items-center justify-center">
-              <span className="text-sky-600 dark:text-cyan-400 font-mono font-black text-sm tracking-tighter">QX</span>
-            </div>
+          <div className="bg-white dark:bg-white/95 px-2.5 py-1 rounded-[4px] border border-slate-200/80 dark:border-white/20 shadow-xs flex items-center">
+            <img src="/logo.png" alt="quickslogix" className="h-6 sm:h-7 w-auto object-contain" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold tracking-wider text-base bg-gradient-to-r from-slate-900 via-slate-800 to-slate-600 dark:from-white dark:via-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
-                quickslogx
-              </span>
-              <span className="px-1.5 py-0.2 text-[10px] font-mono uppercase bg-sky-500/10 text-sky-700 dark:text-cyan-300 border border-sky-400/30 rounded-[2px] font-semibold">
-                HRMS
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tight">
-              Enterprise Human Resource Suite
-            </p>
-          </div>
+          <span className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono uppercase bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-[2px] font-bold">
+            Enterprise OS
+          </span>
         </div>
 
         <motion.button
@@ -105,19 +93,22 @@ export function LoginPage() {
       >
         <div className="liquid-glass-elevated border border-slate-200/90 dark:border-white/15 rounded-[4px] p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-300">
           {/* Top Edge Specular Highlight Line */}
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/60 dark:via-cyan-400/60 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/60 dark:via-amber-400/60 to-transparent" />
 
-          {/* Card Header */}
+          {/* Card Header with Brand Logo */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] bg-sky-500/10 dark:bg-cyan-500/10 border border-sky-400/25 dark:border-cyan-400/25 text-sky-700 dark:text-cyan-300 text-[11px] font-mono uppercase tracking-wider font-bold mb-3">
-              <Shield className="w-3.5 h-3.5" />
+            <div className="inline-block p-2 bg-white dark:bg-white/95 rounded-[6px] border border-slate-200/80 dark:border-white/20 shadow-xs mb-3">
+              <img src="/logo.png" alt="quickslogix" className="h-8 sm:h-9 w-auto mx-auto object-contain" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[2px] bg-amber-500/10 dark:bg-amber-500/15 border border-amber-400/30 text-amber-800 dark:text-amber-300 text-[10px] font-mono uppercase tracking-wider font-bold mb-2">
+              <Shield className="w-3 h-3 text-amber-500" />
               Secure Identity Gateway
             </div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Sign In to Portal
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Enter your credentials to access your dashboard.
+              Enter your corporate credentials to continue
             </p>
           </div>
 
