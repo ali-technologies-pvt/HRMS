@@ -15,7 +15,6 @@ import {
   Calendar,
   ChevronDown,
   Bell,
-  User as UserIcon,
   Check,
   X,
   FileText,
@@ -34,11 +33,13 @@ import {
   Award,
   Zap,
   ExternalLink,
-  KeyRound,
+  PlusSquare,
   Receipt,
-  FilePlus2
+  MoreHorizontal,
+  Megaphone,
+  Hourglass
 } from 'lucide-react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ProfileEditModal } from '../common/ProfileEditModal';
 import { EODReportModal } from './EODReportModal';
 import confetti from 'canvas-confetti';
@@ -47,35 +48,10 @@ interface EmployeeDashboardProps {
   onNavigate?: (view: PortalView) => void;
 }
 
-// Fluid spring animation variants
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.04,
-      delayChildren: 0.02
-    }
-  }
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 14 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 300,
-      damping: 24
-    }
-  }
-};
-
 /**
  * Helper to calculate late arrival minutes for an attendance record
  */
-function getLateMinutes(record: AttendanceRecord, officeStartTime: string = '19:00'): number {
+function getLateMinutes(record: AttendanceRecord, officeStartTime: string = '09:30'): number {
   if (!record.isLate && record.status !== 'late') return 0;
   if (record.lateReason) {
     const match = record.lateReason.match(/(\d+)\s*m/i) || record.lateReason.match(/Late by (\d+)/i);
@@ -129,20 +105,29 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const [showDeductionsModal, setShowDeductionsModal] = useState(false);
   const [showWarningsModal, setShowWarningsModal] = useState(false);
   const [selectedDayForInspector, setSelectedDayForInspector] = useState<AttendanceRecord | null>(null);
-
-  const [fullMonthExpanded, setFullMonthExpanded] = useState(false);
+  const [showAnnouncementBanner, setShowAnnouncementBanner] = useState(true);
 
   // Clock live timer
   const [currentTimeStr, setCurrentTimeStr] = useState('');
-  const [currentDateLong, setCurrentDateLong] = useState('');
+  const [currentDateHeader, setCurrentDateHeader] = useState('WEDNESDAY, 14 OCTOBER');
   const [currentShiftSeconds, setCurrentShiftSeconds] = useState(0);
 
   // Real-time ticking clock
   useEffect(() => {
     const update = () => {
       const now = new Date();
-      setCurrentTimeStr(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setCurrentDateLong(now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }));
+      setCurrentTimeStr(
+        now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+      );
+      setCurrentDateHeader(
+        now
+          .toLocaleDateString(undefined, {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long'
+          })
+          .toUpperCase()
+      );
     };
     update();
     const interval = setInterval(update, 1000);
@@ -180,14 +165,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return () => clearInterval(interval);
   }, [isClockedIn, todayRecord]);
 
-  // Format running shift timer
-  const formattedShiftDuration = useMemo(() => {
-    const hrs = Math.floor(currentShiftSeconds / 3600);
-    const mins = Math.floor((currentShiftSeconds % 3600) / 60);
-    const secs = currentShiftSeconds % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }, [currentShiftSeconds]);
-
   // Target shift duration: 8 hours = 480 minutes
   const targetShiftMinutes = 480;
 
@@ -202,22 +179,26 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return 0;
   }, [isShiftCompleted, isClockedIn, todayRecord, currentShiftSeconds]);
 
-  // Realtime percentage calculation from Check-In to Check-Out
-  const timeLogPercentage = useMemo(() => {
+  // Formatted big display: e.g. "00h 51m"
+  const formattedHoursAndMins = useMemo(() => {
+    const hrs = Math.floor(workedMinutesToday / 60);
+    const mins = workedMinutesToday % 60;
+    return `${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
+  }, [workedMinutesToday]);
+
+  // Shift progress percentage
+  const shiftProgressPercentage = useMemo(() => {
     if (workedMinutesToday <= 0) return 0;
     const pct = Math.round((workedMinutesToday / targetShiftMinutes) * 100);
     return Math.min(100, Math.max(0, pct));
   }, [workedMinutesToday, targetShiftMinutes]);
 
-  // SVG Gauge measurements
-  const circleRadius = 46;
-  const circleCircumference = 2 * Math.PI * circleRadius;
-  const strokeDashoffset = circleCircumference - (timeLogPercentage / 100) * circleCircumference;
-
   // =========================================================================
   // 100% REAL-TIME DYNAMIC DATA CALCULATION FOR CURRENT USER (NO FAKE DATA)
   // =========================================================================
-  const officeStart = policy?.officeStartTime || '19:00';
+  const officeStart = policy?.officeStartTime || '09:30';
+  const officeEnd = policy?.officeEndTime || '18:00';
+  const graceMins = policy?.gracePeriodMinutes || 15;
 
   // Filter attendance records strictly for currentUser (current month: October 2026)
   const myAllRecords = useMemo(() => {
@@ -230,7 +211,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return myAllRecords.filter((a) => a.date.startsWith('2026-10'));
   }, [myAllRecords]);
 
-  // Calculations for KPI Cards
+  // Calculations for KPI Cards & Insights
   const stats = useMemo(() => {
     const presentRecords = myMonthRecords.filter(
       (r) => r.status === 'present' || (r.clockIn && r.status !== 'absent' && r.status !== 'leave')
@@ -243,33 +224,12 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     // Calculate total late minutes and late fines
     let totalLateMinutes = 0;
     let lateFineDaysSum = 0;
-    let tier025Count = 0;
-    let tier050Count = 0;
-    let tier100Count = 0;
-
-    const lateBreakdownList: Array<{
-      date: string;
-      lateMins: number;
-      fineDays: number;
-      fineStr: string;
-    }> = [];
 
     lateRecords.forEach((r) => {
       const lm = getLateMinutes(r, officeStart);
       totalLateMinutes += lm;
-      const { days, fineStr } = getLateFineTier(lm);
+      const { days } = getLateFineTier(lm);
       lateFineDaysSum += days;
-
-      if (lm > 15 && lm <= 30) tier025Count++;
-      else if (lm > 30 && lm <= 60) tier050Count++;
-      else if (lm > 60) tier100Count++;
-
-      lateBreakdownList.push({
-        date: r.date,
-        lateMins: lm,
-        fineDays: days,
-        fineStr
-      });
     });
 
     // Approved late requests
@@ -307,16 +267,13 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
     // Total active recorded days
     const totalRecordedDays = onTimeCount + lateDaysCount + absentCount + leaveCount;
-    const onTimePercentage = totalRecordedDays > 0 ? Math.round((onTimeCount / totalRecordedDays) * 100) : 100;
+    const onTimePercentage = totalRecordedDays > 0 ? Math.round((onTimeCount / totalRecordedDays) * 100) : 0;
 
     return {
       presentCount,
       lateDaysCount,
       totalLateMinutes,
       lateFineDaysSum,
-      tier025Count,
-      tier050Count,
-      tier100Count,
       approvedLateCount,
       absentCount,
       absentRecords,
@@ -325,51 +282,15 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
       totalDeductionsDays,
       onTimeCount,
       totalRecordedDays,
-      onTimePercentage,
-      lateBreakdownList
+      onTimePercentage
     };
   }, [myMonthRecords, officeStart, requests, currentUser.id]);
 
-  // Dynamic Donut Chart Slice Calculations
-  const donutSlices = useMemo(() => {
-    const total = stats.totalRecordedDays;
-    const circumference = 2 * Math.PI * 38; // ~238.76
-
-    if (total === 0) {
-      return {
-        onTimePct: 0,
-        latePct: 0,
-        absentPct: 0,
-        leavePct: 0,
-        circumference,
-        onTimeOffset: circumference,
-        lateOffset: circumference,
-        absentOffset: circumference
-      };
-    }
-
-    const onTimeShare = stats.onTimeCount / total;
-    const lateShare = stats.lateDaysCount / total;
-    const absentShare = stats.absentCount / total;
-
-    return {
-      onTimePct: Math.round(onTimeShare * 100),
-      latePct: Math.round(lateShare * 100),
-      absentPct: Math.round(absentShare * 100),
-      leavePct: Math.round((stats.leaveCount / total) * 100),
-      circumference,
-      onTimeOffset: circumference * (1 - onTimeShare),
-      lateOffset: circumference * (1 - lateShare),
-      absentOffset: circumference * (1 - absentShare)
-    };
-  }, [stats]);
-
-  // Max Late Tier Count for progress bars
-  const maxLateTierCount = Math.max(stats.tier025Count, stats.tier050Count, stats.tier100Count, 1);
-
-  const displayedRecords = useMemo(() => {
-    return fullMonthExpanded ? myMonthRecords : myMonthRecords.slice(0, 8);
-  }, [myMonthRecords, fullMonthExpanded]);
+  // Donut Gauge SVG Calculations
+  const donutCircumference = 2 * Math.PI * 34; // ~213.6
+  const donutOffset = stats.totalRecordedDays > 0
+    ? donutCircumference - (stats.onTimePercentage / 100) * donutCircumference
+    : donutCircumference;
 
   // Handle Punch In Action
   const handleClockIn = () => {
@@ -389,983 +310,777 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     }
   };
 
+  // User initials for profile card
+  const userInitials = useMemo(() => {
+    if (!currentUser?.name) return 'EMP';
+    const parts = currentUser.name.trim().split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return parts[0].slice(0, 3).toUpperCase();
+  }, [currentUser?.name]);
+
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6 pb-12 font-sans text-slate-800 dark:text-slate-100 max-w-7xl mx-auto"
-    >
+    <div className="space-y-6 pb-12 font-sans text-slate-800 dark:text-slate-100 max-w-7xl mx-auto">
       {/* ======================================================== */}
-      {/* 1. LUXURY EXECUTIVE HERO BANNER                          */}
+      {/* TOP BREADCRUMB & HEADER STRIP (Matching Screenshot)     */}
       {/* ======================================================== */}
-      <motion.div
-        variants={itemVariants}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 pb-2 border-b border-slate-200/70 dark:border-white/[0.07]"
-      >
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[11px] font-semibold tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              Workspace Portal
-            </span>
-            <span className="text-xs text-slate-400 font-medium">
-              &bull; ID: #{currentUser.id.replace('user-', '').toUpperCase()}
-            </span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Welcome back,{' '}
-            <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500 bg-clip-text text-transparent">
-              {currentUser.name}
-            </span>
-          </h1>
-
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
-            <span>{currentUser.designation || 'Web Development Executive'}</span>
-            <span>&bull;</span>
-            <span className="capitalize text-slate-700 dark:text-slate-300 font-semibold">{currentUser.department || 'Operations'}</span>
-          </p>
+      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pb-1 border-b border-slate-200/60 dark:border-white/5">
+        <div className="flex items-center gap-2">
+          <span>Workspace</span>
+          <span className="text-slate-300 dark:text-slate-600">/</span>
+          <strong className="text-slate-900 dark:text-white font-semibold">Overview</strong>
         </div>
 
-        {/* Right Info: Month & Live Date Pill */}
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-white/10 shadow-sm text-xs font-semibold text-slate-700 dark:text-slate-200">
-            <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>October 2026</span>
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100/90 dark:bg-white/[0.05] border border-slate-200/60 dark:border-white/10 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>{currentDateLong || 'October 2026'}</span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ======================================================== */}
-      {/* 2. EXECUTIVE SHIFT COMMAND CENTER (HERO GLASS CARD)      */}
-      {/* ======================================================== */}
-      <motion.div
-        variants={itemVariants}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/95 via-white/90 to-blue-50/40 dark:from-[#0d1322] dark:via-[#0e1629] dark:to-[#141b33] border border-slate-200/80 dark:border-white/10 p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] backdrop-blur-xl"
-      >
-        {/* Subtle Ambient Background Glows */}
-        <div className="absolute -top-24 -right-24 w-72 h-72 bg-blue-500/10 dark:bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500/10 dark:bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 z-10">
-          {/* Left: Luxury Circular Progress Ring & Live Telemetry */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            {/* Circular Gauge Ring */}
-            <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full -rotate-90 filter drop-shadow-sm" viewBox="0 0 120 120">
-                <defs>
-                  <linearGradient id="ringProgressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#3b82f6" />
-                    <stop offset="50%" stopColor="#6366f1" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-
-                {/* Background Ring Track */}
-                <circle
-                  cx="60"
-                  cy="60"
-                  r={circleRadius}
-                  className="stroke-slate-200/70 dark:stroke-slate-800"
-                  strokeWidth="8"
-                  fill="transparent"
-                />
-
-                {/* Animated Luminous Gauge */}
-                <circle
-                  cx="60"
-                  cy="60"
-                  r={circleRadius}
-                  stroke="url(#ringProgressGradient)"
-                  strokeWidth="8"
-                  strokeDasharray={circleCircumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  fill="transparent"
-                  className="transition-all duration-700 ease-out"
-                />
-              </svg>
-
-              {/* Inside Gauge Center */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  SHIFT LOG
-                </span>
-                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {timeLogPercentage}%
-                </span>
-                <span className="text-[9px] font-medium text-slate-400">
-                  Target: 8.0h
-                </span>
-              </div>
-            </div>
-
-            {/* Shift Details & Live Clock */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-xs ${
-                    isClockedIn
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
-                      : isShiftCompleted
-                      ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/30'
-                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${isClockedIn ? 'bg-emerald-500 animate-ping' : isShiftCompleted ? 'bg-blue-500' : 'bg-amber-500'}`} />
-                  {isClockedIn ? 'Shift In Progress' : isShiftCompleted ? 'Shift Completed' : 'Not Clocked In'}
-                </span>
-
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  {policy?.officeStartTime || '19:00'} &mdash; {policy?.officeEndTime || '04:00'} (Grace: {policy?.gracePeriodMinutes || 15}m)
-                </span>
-              </div>
-
-              {/* Big Digital Clock Display */}
-              <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white font-mono">
-                  {isClockedIn ? formattedShiftDuration : currentTimeStr || '00:00:00'}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {isClockedIn
-                    ? `Punched in at ${todayRecord?.clockIn} (${todayRecord?.isLate ? 'Late Arrival' : 'On-Time'})`
-                    : isShiftCompleted
-                    ? `Completed at ${todayRecord?.clockOut} (Logged ${Math.floor(workedMinutesToday / 60)}h ${workedMinutesToday % 60}m)`
-                    : 'Ready to begin work session'}
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-                Punctuality and active shift telemetry are synchronized live with enterprise payroll reconciliation.
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Executive Action Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            {!isClockedIn && !isShiftCompleted && (
-              <button
-                type="button"
-                onClick={handleClockIn}
-                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>PUNCH IN (START SHIFT)</span>
-              </button>
-            )}
-
-            {isClockedIn && (
-              <button
-                type="button"
-                onClick={handleClockOut}
-                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-500 hover:from-rose-500 hover:to-red-400 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>PUNCH OUT (END SHIFT)</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowEODModal(true)}
-              className="px-5 py-3.5 rounded-2xl bg-white/80 dark:bg-white/[0.07] hover:bg-white dark:hover:bg-white/[0.12] border border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer"
-            >
-              <FileCheck2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Submit EOD Report</span>
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ======================================================== */}
-      {/* 3. ROW 1: 6 BENTO-GRID KPI CARDS (CLEAN & REFINED)       */}
-      {/* ======================================================== */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Card 1: Present */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-emerald-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Present</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <UserCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.presentCount}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.presentCount === 1 ? 'Day' : 'Days'}
-              </span>
-            </div>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">
-              Logged Attendance
-            </span>
-          </div>
-        </div>
-
-        {/* Card 2: Late Days */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-amber-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Late Days</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.lateDaysCount}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.lateDaysCount === 1 ? 'Day' : 'Days'} &bull; {stats.totalLateMinutes}m
-              </span>
-            </div>
-            {stats.lateFineDaysSum > 0 ? (
-              <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/30 text-[10px] font-bold">
-                Fine {stats.lateFineDaysSum}d salary
-              </span>
-            ) : (
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium block mt-0.5">
-                Zero fines
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Card 3: Approved Late */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-sky-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Approved Late</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.approvedLateCount}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.approvedLateCount === 1 ? 'Day' : 'Days'}
-              </span>
-            </div>
-            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium block mt-0.5">
-              Excuses granted
-            </span>
-          </div>
-        </div>
-
-        {/* Card 4: Absent */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-rose-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Absent</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <UserX className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.absentCount}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.absentCount === 1 ? 'Day' : 'Days'}
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-              Unexcused days
-            </span>
-          </div>
-        </div>
-
-        {/* Card 5: On Leave */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-purple-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">On Leave</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <Plane className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.leaveCount}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.leaveCount === 1 ? 'Day' : 'Days'}
-              </span>
-            </div>
-            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium block mt-0.5">
-              Authorized leaves
-            </span>
-          </div>
-        </div>
-
-        {/* Card 6: Overtime */}
-        <div className="group rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/70 dark:border-white/[0.08] p-4 shadow-xs hover:shadow-md hover:border-indigo-400/40 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Overtime</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-transform group-hover:scale-110">
-              <Zap className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {stats.totalOvertimeHours}
-              <span className="text-xs font-normal text-slate-400 ml-1">
-                {stats.totalOvertimeHours === 1 ? 'Hour' : 'Hours'}
-              </span>
-            </div>
-            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium block mt-0.5">
-              Extra hours logged
-            </span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ======================================================== */}
-      {/* 4. ROW 2: 3 REALTIME ANALYTICS CARDS (CLEAN & SLEEK)     */}
-      {/* ======================================================== */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Card A: Attendance Donut · Oct 2026 */}
-        <div className="rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Attendance &middot; Oct 2026
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {stats.totalRecordedDays} logged shifts this month
-              </p>
-            </div>
-            <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-xs">
-              {stats.totalRecordedDays > 0 ? `${stats.onTimePercentage}%` : '0%'}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-around gap-4 py-2">
-            {/* SVG Donut */}
-            <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="transparent"
-                  stroke="currentColor"
-                  className="text-slate-100 dark:text-slate-800"
-                  strokeWidth="11"
-                />
-
-                {stats.totalRecordedDays > 0 ? (
-                  <>
-                    {/* On-Time (Blue) */}
-                    {donutSlices.onTimePct > 0 && (
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="38"
-                        fill="transparent"
-                        stroke="#2563eb"
-                        strokeWidth="11"
-                        strokeDasharray={donutSlices.circumference}
-                        strokeDashoffset={donutSlices.onTimeOffset}
-                        strokeLinecap="round"
-                        className="transition-all duration-700 ease-out"
-                      />
-                    )}
-
-                    {/* Late (Amber) */}
-                    {donutSlices.latePct > 0 && (
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="38"
-                        fill="transparent"
-                        stroke="#f59e0b"
-                        strokeWidth="11"
-                        strokeDasharray={donutSlices.circumference}
-                        strokeDashoffset={donutSlices.lateOffset}
-                        strokeLinecap="round"
-                        transform={`rotate(${donutSlices.onTimePct * 3.6} 50 50)`}
-                        className="transition-all duration-700 ease-out"
-                      />
-                    )}
-
-                    {/* Absent (Rose) */}
-                    {donutSlices.absentPct > 0 && (
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="38"
-                        fill="transparent"
-                        stroke="#ef4444"
-                        strokeWidth="11"
-                        strokeDasharray={donutSlices.circumference}
-                        strokeDashoffset={donutSlices.absentOffset}
-                        strokeLinecap="round"
-                        transform={`rotate(${(donutSlices.onTimePct + donutSlices.latePct) * 3.6} 50 50)`}
-                        className="transition-all duration-700 ease-out"
-                      />
-                    )}
-                  </>
-                ) : (
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    fill="transparent"
-                    stroke="#3b82f6"
-                    strokeWidth="11"
-                    strokeDasharray={donutSlices.circumference}
-                    strokeDashoffset={0}
-                    className="opacity-20"
-                  />
-                )}
-              </svg>
-
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-xl font-black text-slate-900 dark:text-white leading-none">
-                  {stats.totalRecordedDays > 0 ? `${stats.onTimePercentage}%` : '0%'}
-                </span>
-                <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mt-1">
-                  ON TIME
-                </span>
-              </div>
-            </div>
-
-            {/* Clean Legend */}
-            <div className="space-y-2 text-xs font-medium">
-              <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                  On time
-                </span>
-                <strong className="text-slate-900 dark:text-white font-bold">{stats.onTimeCount}</strong>
-              </div>
-
-              <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  Late
-                </span>
-                <strong className="text-slate-900 dark:text-white font-bold">{stats.lateDaysCount}</strong>
-              </div>
-
-              <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                  Absent
-                </span>
-                <strong className="text-slate-900 dark:text-white font-bold">{stats.absentCount}</strong>
-              </div>
-
-              <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                  Leave
-                </span>
-                <strong className="text-slate-900 dark:text-white font-bold">{stats.leaveCount}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card B: Late Fine Breakdown */}
-        <div className="rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Late Fine &middot; Oct 2026
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {stats.lateDaysCount} incident(s) under deduction policy
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPolicyModal(true)}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Policy
-            </button>
-          </div>
-
-          <div className="space-y-3.5 text-xs">
-            {/* Tier 1: 0.25 day (16-30m) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">0.25 day (16-30m)</span>
-                <span className="font-bold text-slate-900 dark:text-white">{stats.tier025Count}</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-white/[0.06] h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${stats.tier025Count > 0 ? (stats.tier025Count / maxLateTierCount) * 100 : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Tier 2: 0.5 day (31-60m) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">0.5 day (31-60m)</span>
-                <span className="font-bold text-slate-900 dark:text-white">{stats.tier050Count}</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-white/[0.06] h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-orange-500 h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${stats.tier050Count > 0 ? (stats.tier050Count / maxLateTierCount) * 100 : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Tier 3: Full day (>60m) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">Full day (&gt;60m)</span>
-                <span className="font-bold text-slate-900 dark:text-white">{stats.tier100Count}</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-white/[0.06] h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-rose-500 h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${stats.tier100Count > 0 ? (stats.tier100Count / maxLateTierCount) * 100 : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card C: Late Minutes Histogram (Refined Column Chart, NO Giant Ugly Block) */}
-        <div className="rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Late Minutes
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Total penalty duration
-              </p>
-            </div>
-            <span className="text-base font-extrabold text-rose-500 font-mono">
-              {stats.totalLateMinutes}m
-            </span>
-          </div>
-
-          {/* Refined Histogram Column Chart */}
-          {stats.lateBreakdownList.length > 0 ? (
-            <div className="pt-2">
-              <div className="h-28 flex items-end justify-center gap-6 px-3 border-b border-slate-100 dark:border-white/5 pb-2">
-                {stats.lateBreakdownList.slice(0, 4).map((item, idx) => {
-                  const maxM = Math.max(...stats.lateBreakdownList.map((l) => l.lateMins), 60);
-                  const barH = Math.min(100, Math.max(30, Math.round((item.lateMins / maxM) * 100)));
-
-                  return (
-                    <div key={idx} className="flex flex-col items-center gap-1.5 h-full justify-end">
-                      <span className="text-[10px] font-bold text-rose-500 font-mono">
-                        {item.lateMins}m
-                      </span>
-                      <div
-                        className="w-10 rounded-t-xl bg-gradient-to-t from-rose-500 to-amber-400 shadow-xs hover:opacity-90 transition-all cursor-pointer"
-                        style={{ height: `${barH}%` }}
-                        title={`${item.date}: ${item.lateMins} minutes late`}
-                      />
-                      <span className="text-[10px] font-medium text-slate-400">
-                        {item.date.slice(5)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <span className="text-[10px] text-slate-400 text-center block pt-2">
-                Recent late arrival logs &middot; Click row in table for details
-              </span>
-            </div>
-          ) : (
-            <div className="h-28 flex flex-col items-center justify-center text-center space-y-1.5">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Pristine Attendance Record
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Zero late arrival minutes logged this month!
-              </span>
-            </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* ======================================================== */}
-      {/* 5. ROW 3: POLICY, DEDUCTIONS & WARNINGS SUMMARY TILES     */}
-      {/* ======================================================== */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Card 1: Late fine terms */}
-        <div
-          onClick={() => setShowPolicyModal(true)}
-          className="group rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 shadow-xs hover:shadow-md hover:border-blue-400/50 transition-all cursor-pointer flex items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                Late Fine Terms &amp; Policy
-              </h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Check-in after {officeStart} rules &amp; deduction tiers
-              </p>
-            </div>
-          </div>
-
-          <span className="text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-0.5 transition-transform">
-            &rarr;
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-slate-700 dark:text-slate-300 font-medium">
+            {currentTimeStr || '09:05 PM'}
           </span>
+          <div className="h-3.5 w-px bg-slate-200 dark:bg-white/10" />
+          <button
+            type="button"
+            onClick={() => onNavigate?.('emp_noticeboard')}
+            className="relative text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500" />
+          </button>
         </div>
-
-        {/* Card 2: Total Deductions */}
-        <div
-          onClick={() => setShowDeductionsModal(true)}
-          className="group rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 shadow-xs hover:shadow-md hover:border-rose-400/50 transition-all cursor-pointer flex items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                Total Deductions &middot; Oct 2026
-              </h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Late fines + absent days itemized breakdown
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right">
-            <span className="text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-              {stats.totalDeductionsDays}
-            </span>
-            <span className="text-xs font-bold text-slate-400 ml-1">days</span>
-          </div>
-        </div>
-
-        {/* Card 3: Warnings */}
-        <div
-          onClick={() => setShowWarningsModal(true)}
-          className="group rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 shadow-xs hover:shadow-md hover:border-amber-400/50 transition-all cursor-pointer flex items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                Warnings &middot; Oct 2026
-              </h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {stats.lateDaysCount >= 3 ? '1 active late arrival advisory' : 'No disciplinary notices active'}
-              </p>
-            </div>
-          </div>
-
-          <span className="text-xl font-black text-slate-900 dark:text-white font-mono">
-            {stats.lateDaysCount >= 3 ? '1' : '0'}
-          </span>
-        </div>
-      </motion.div>
+      </div>
 
       {/* ======================================================== */}
-      {/* 6. ROW 4: 2-COLUMN NOTIFICATIONS & ATTENDANCE TABLE       */}
+      {/* MAIN TWO-COLUMN LAYOUT                                   */}
+      {/* LEFT: 8 Cols (Shift, Stats, Actions, Records)           */}
+      {/* RIGHT: 4 Cols (Employee Profile, Warnings)               */}
       {/* ======================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ====================================================== */}
-        {/* LEFT COLUMN: RECENT NOTIFICATIONS (4 Cols)             */}
+        {/* LEFT MAIN WORKSPACE COLUMN (8 Cols)                    */}
         {/* ====================================================== */}
-        <motion.div variants={itemVariants} className="lg:col-span-4 space-y-4">
-          <div className="rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Recent Notices
-              </h3>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('emp_noticeboard')}
-                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-              >
-                View all
-              </button>
+        <div className="lg:col-span-8 space-y-5">
+          {/* 1. Header with Date & Month Pill */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <div>
+              <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase block mb-1">
+                {currentDateHeader}
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#111827] dark:text-white tracking-tight">
+                Welcome back, {currentUser.name.split(' ')[0]}.
+              </h1>
             </div>
 
-            <div className="space-y-3 divide-y divide-slate-100 dark:divide-white/5">
-              {announcements.length > 0 ? (
-                announcements.slice(0, 4).map((ann) => (
-                  <div key={ann.id} className="pt-3 first:pt-0 space-y-1">
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-white leading-snug flex items-center gap-1.5">
-                      <span className="text-sm">📢</span>
-                      <span className="truncate">{ann.title}</span>
-                    </h5>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                      {ann.content}
-                    </p>
-                    <span className="text-[10px] text-slate-400 block pt-0.5">
-                      {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Recent'}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="py-6 text-center text-xs text-slate-400">
-                  No company notices at this moment.
-                </div>
-              )}
+            {/* October 2026 Selector Pill */}
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-xs text-xs font-semibold text-slate-700 dark:text-slate-200 self-start sm:self-auto cursor-pointer">
+              <Calendar className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+              <span>October 2026</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
             </div>
           </div>
-        </motion.div>
 
-        {/* ====================================================== */}
-        {/* RIGHT COLUMN: QUICK ACTIONS + ATTENDANCE TABLE (8 Cols) */}
-        {/* ====================================================== */}
-        <motion.div variants={itemVariants} className="lg:col-span-8 space-y-4">
-          {/* 4 Luxury Quick Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
-              type="button"
-              onClick={() => onNavigate?.('emp_requests')}
-              className="py-3 px-3.5 rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:border-blue-500/60 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-            >
-              <FilePlus2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>New Request</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate?.('emp_requests')}
-              className="py-3 px-3.5 rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:border-blue-500/60 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-            >
-              <Plane className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>Apply Leave</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate?.('emp_payslips')}
-              className="py-3 px-3.5 rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:border-blue-500/60 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-            >
-              <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Salary Slip</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowProfileModal(true)}
-              className="py-3 px-3.5 rounded-2xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:border-blue-500/60 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-            >
-              <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Reset Password</span>
-            </button>
-          </div>
-
-          {/* Luxury Realtime Attendance Table Card */}
-          <div className="rounded-3xl bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 shadow-xs overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Attendance &middot; Oct 2026 ({myMonthRecords.length} records)
-                </h3>
-                <span className="text-[11px] text-slate-400">
-                  Tap any record to inspect complete audit timeline
+          {/* 2. Announcement Banner */}
+          {showAnnouncementBanner && (
+            <div className="p-3.5 rounded-2xl bg-[#eef3ef] dark:bg-emerald-950/20 border border-[#dce7de] dark:border-emerald-900/30 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="text-emerald-700 dark:text-emerald-400">
+                  <Megaphone className="w-4 h-4" />
                 </span>
+                <p className="text-slate-700 dark:text-slate-200">
+                  <strong className="font-bold text-slate-900 dark:text-white">A fresh space for your workday.</strong>{' '}
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Track your time, connect with your team and keep everything moving.
+                  </span>
+                </p>
               </div>
 
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.06] text-[10px] font-semibold text-slate-500">
-                Live Data
+              <button
+                type="button"
+                onClick={() => setShowAnnouncementBanner(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* 3. YOUR SHIFT COMMAND CARD (Exact Match to Reference UI) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-6 sm:p-7 shadow-xs space-y-6">
+            {/* Shift Header & Progress Bar */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+                  YOUR SHIFT
+                </span>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                        isClockedIn
+                          ? 'bg-[#e2f3e8] text-[#14342b] border border-[#c4e6ce]'
+                          : isShiftCompleted
+                          ? 'bg-[#eaf1ec] text-[#183b32] border border-[#d6e5da]'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isClockedIn ? 'bg-[#183b32] animate-ping' : isShiftCompleted ? 'bg-[#183b32]' : 'bg-slate-400'}`} />
+                      {isClockedIn ? 'Shift in progress' : isShiftCompleted ? 'Shift concluded' : 'Not started'}
+                    </span>
+                    <span className="text-xs text-slate-400">| Target: 8h (480m)</span>
+                  </div>
+
+                  <span className="text-base font-extrabold text-[#111827] dark:text-white font-mono">
+                    {shiftProgressPercentage}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Minimal Dark Pine Green Progress Track */}
+              <div className="w-full bg-[#e5e9e6] dark:bg-white/[0.08] h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#183b32] dark:bg-emerald-500 h-full rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${shiftProgressPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Time Logged Huge Typography */}
+            <div>
+              <div className="text-4xl sm:text-5xl font-black text-[#111827] dark:text-white tracking-tight font-mono">
+                {formattedHoursAndMins}
+              </div>
+              <span className="text-xs text-slate-400 font-medium block mt-1">
+                Time logged
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-white/5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/50 dark:bg-white/[0.01]">
-                    <th className="py-3 px-5">Date</th>
-                    <th className="py-3 px-5">In</th>
-                    <th className="py-3 px-5">Out</th>
-                    <th className="py-3 px-5 text-right">Status / Fine</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-xs">
-                  {displayedRecords.length > 0 ? (
-                    displayedRecords.map((row) => {
-                      const lateM = getLateMinutes(row, officeStart);
-                      const isLateRow = row.isLate || row.status === 'late';
-                      const { fineStr } = getLateFineTier(lateM);
+            {/* Dual Check-In & Check-Out Boxes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* CHECK IN Box (Soft light greenish/gray tint) */}
+              <div className="p-5 rounded-2xl bg-[#f0f4f1] dark:bg-white/[0.03] border border-[#e2e9e4] dark:border-white/5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 flex items-center justify-center text-[#183b32] dark:text-emerald-400 shrink-0 shadow-2xs">
+                  <LogIn className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block">
+                    CHECK IN
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-[#111827] dark:text-white tracking-tight font-mono">
+                    {todayRecord?.clockIn || '--:--'}
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">
+                    {todayRecord?.clockIn ? 'Recorded today' : 'Not logged yet'}
+                  </span>
+                </div>
+              </div>
 
-                      return (
-                        <tr
-                          key={row.id || row.date}
-                          onClick={() => setSelectedDayForInspector(row)}
-                          className="hover:bg-slate-50/80 dark:hover:bg-white/[0.03] transition-colors cursor-pointer group"
-                        >
-                          <td className="py-3.5 px-5 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>{row.date}</span>
-                          </td>
-                          <td className="py-3.5 px-5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                            {row.clockIn || '—'}
-                          </td>
-                          <td className="py-3.5 px-5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                            {row.clockOut || '—'}
-                          </td>
-                          <td className="py-3.5 px-5 text-right">
-                            {row.status === 'absent' && (
-                              <div className="inline-flex flex-col items-end">
-                                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-[11px]">
-                                  Absent
-                                </span>
-                                <span className="text-[10px] text-rose-500 font-semibold mt-0.5">
-                                  1 day salary
-                                </span>
-                              </div>
-                            )}
+              {/* CHECK OUT Box (Deep Pine Green Card with subtle botanical watermark) */}
+              <div className="relative p-5 rounded-2xl bg-[#183b32] dark:bg-[#122e27] text-white flex items-center gap-4 overflow-hidden shadow-xs">
+                {/* Botanical curve decorative watermark */}
+                <svg
+                  className="absolute right-0 bottom-0 w-32 h-32 opacity-15 pointer-events-none text-white"
+                  viewBox="0 0 100 100"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M0,100 C40,90 60,40 100,0" />
+                  <path d="M20,100 C50,85 70,30 100,10" />
+                  <path d="M40,100 C60,80 80,20 100,20" />
+                </svg>
 
-                            {row.status === 'leave' && (
-                              <span className="px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold text-[11px]">
-                                On Leave
-                              </span>
-                            )}
-
-                            {row.status === 'half_day' && (
-                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[11px]">
-                                Half Day
-                              </span>
-                            )}
-
-                            {isLateRow && (
-                              <div className="inline-flex flex-col items-end">
-                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold text-[11px]">
-                                  {lateM > 0 ? `${lateM}m late` : 'Late'}
-                                </span>
-                                {fineStr && (
-                                  <span className="text-[10px] text-rose-500 font-semibold mt-0.5">
-                                    {fineStr}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {!isLateRow && row.status !== 'absent' && row.status !== 'leave' && row.status !== 'half_day' && (
-                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
-                                On time
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <Clock className="w-10 h-10 text-slate-300 dark:text-slate-600" />
-                          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                            No attendance logs recorded yet for October 2026
-                          </p>
-                          <p className="text-xs text-slate-400 max-w-sm">
-                            Your shifts, punch-ins, and automated punctuality metrics will calculate right here from your first check-in!
-                          </p>
-                          {!isClockedIn && (
-                            <button
-                              type="button"
-                              onClick={handleClockIn}
-                              className="mt-3 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20"
-                            >
-                              Punch In Now
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 z-10">
+                  <LogOut className="w-5 h-5" />
+                </div>
+                <div className="z-10">
+                  <span className="text-[10px] font-bold tracking-wider text-emerald-200/80 uppercase block">
+                    CHECK OUT
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
+                    {todayRecord?.clockOut || (isClockedIn ? 'In Progress' : '--:--')}
+                  </div>
+                  <span className="text-xs text-emerald-200/70 block mt-0.5">
+                    {isShiftCompleted
+                      ? 'Shift completed'
+                      : isClockedIn
+                      ? 'Click Punch Out when done'
+                      : 'Pending punch out'}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Bottom Expand Toggle */}
-            {myMonthRecords.length > 8 && (
-              <div className="p-3 text-center border-t border-slate-100 dark:border-white/5">
+            {/* Bottom Shift Info Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>
+                  {todayRecord?.clockOut
+                    ? `Completed at ${todayRecord.clockOut}`
+                    : todayRecord?.clockIn
+                    ? `In session since ${todayRecord.clockIn}`
+                    : 'Shift not started'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 sm:border-l sm:border-slate-200/80 dark:sm:border-white/10 sm:pl-3">
+                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>Office hours {officeStart} – {officeEnd}</span>
+              </div>
+
+              <div className="flex items-center gap-2 sm:border-l sm:border-slate-200/80 dark:sm:border-white/10 sm:pl-3">
+                <Hourglass className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>Grace period: {graceMins} mins</span>
+              </div>
+            </div>
+
+            {/* Punch In / Out Quick Trigger Controls */}
+            {!isClockedIn && !isShiftCompleted && (
+              <div className="pt-2">
                 <button
                   type="button"
-                  onClick={() => setFullMonthExpanded(!fullMonthExpanded)}
-                  className="text-xs font-semibold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                  onClick={handleClockIn}
+                  className="w-full py-3 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
                 >
-                  <span>{fullMonthExpanded ? 'Collapse view' : `View full month (${myMonthRecords.length} records)`}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${fullMonthExpanded ? 'rotate-180' : ''}`} />
+                  <LogIn className="w-4 h-4" />
+                  <span>PUNCH IN (START SHIFT)</span>
+                </button>
+              </div>
+            )}
+
+            {isClockedIn && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleClockOut}
+                  className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>PUNCH OUT (END SHIFT)</span>
                 </button>
               </div>
             )}
           </div>
-        </motion.div>
+
+          {/* 4. 6 METRIC STATS ROW (Single Card with 6 Columns) */}
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-4 shadow-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 dark:divide-white/5 text-center">
+              {/* PRESENT */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  PRESENT
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.presentCount}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {stats.presentCount === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+              </div>
+
+              {/* LATE */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  LATE
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.lateDaysCount}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {stats.lateDaysCount === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+              </div>
+
+              {/* APPROVED LATE */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  APPROVED LATE
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.approvedLateCount}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {stats.approvedLateCount === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+              </div>
+
+              {/* ABSENT */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  ABSENT
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.absentCount}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {stats.absentCount === 1 ? 'days' : 'days'}
+                  </span>
+                </div>
+              </div>
+
+              {/* ON LEAVE */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  ON LEAVE
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.leaveCount}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {stats.leaveCount === 1 ? 'days' : 'days'}
+                  </span>
+                </div>
+              </div>
+
+              {/* OVERTIME */}
+              <div className="py-2 sm:py-0 px-2">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1">
+                  OVERTIME
+                </span>
+                <div className="text-xl font-black text-[#111827] dark:text-white">
+                  {stats.totalOvertimeHours}{' '}
+                  <span className="text-xs font-normal text-slate-400">hours</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. QUICK ACTIONS ROW */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 shadow-xs">
+            <div>
+              <h4 className="text-xs font-bold text-[#111827] dark:text-white">
+                Quick actions
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                Common tasks, all in one place.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEODModal(true)}
+                className="px-4 py-2 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              >
+                <FileCheck2 className="w-3.5 h-3.5" />
+                <span>Submit EOD report</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate?.('emp_requests')}
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:border-slate-400 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <PlusSquare className="w-3.5 h-3.5 text-slate-500" />
+                <span>New request</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate?.('emp_requests')}
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:border-slate-400 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <span>Apply leave</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate?.('emp_payslips')}
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:border-slate-400 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Receipt className="w-3.5 h-3.5 text-slate-500" />
+                <span>Salary slip</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 6. BOTTOM ROW: ATTENDANCE RECORD & MONTHLY INSIGHTS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Left: Attendance Record Table */}
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-[#111827] dark:text-white">
+                    Attendance record
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    {stats.totalRecordedDays} recorded workday{stats.totalRecordedDays === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-700"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-white/5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <th className="py-2 px-3">DATE</th>
+                      <th className="py-2 px-3">CHECK IN</th>
+                      <th className="py-2 px-3">CHECK OUT</th>
+                      <th className="py-2 px-3 text-right">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono text-[11px]">
+                    {myMonthRecords.length > 0 ? (
+                      myMonthRecords.slice(0, 5).map((row) => {
+                        const isLateRow = row.isLate || row.status === 'late';
+                        return (
+                          <tr
+                            key={row.id || row.date}
+                            onClick={() => setSelectedDayForInspector(row)}
+                            className="hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
+                          >
+                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
+                              {row.date}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                              {row.clockIn || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                              {row.clockOut || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {isLateRow ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fcedea] text-rose-600 text-[10px] font-bold">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  Late
+                                </span>
+                              ) : row.status === 'absent' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[10px] font-bold">
+                                  Absent
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#eef5f1] text-[#14342b] text-[10px] font-bold">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  On time
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-slate-400 text-xs">
+                          No attendance records logged yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Right: Monthly Insights Card */}
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[#111827] dark:text-white">
+                  Monthly insights
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowPolicyModal(true)}
+                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                >
+                  <span>View policy</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Gauge & Legend Row */}
+              <div className="flex items-center justify-around gap-4 py-1">
+                {/* Donut Gauge */}
+                <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="34"
+                      fill="transparent"
+                      stroke="#f1ede6"
+                      strokeWidth="9"
+                    />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="34"
+                      fill="transparent"
+                      stroke="#d9822b"
+                      strokeWidth="9"
+                      strokeDasharray={donutCircumference}
+                      strokeDashoffset={donutOffset}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-lg font-black text-[#111827] dark:text-white leading-none">
+                      {stats.onTimePercentage}%
+                    </span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
+                      On time
+                    </span>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="space-y-1.5 text-xs font-medium">
+                  <div className="flex items-center justify-between gap-6">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-[#6a9976]" />
+                      On time
+                    </span>
+                    <strong className="text-slate-900 dark:text-white font-mono">{stats.onTimeCount}</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-6">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-[#d9822b]" />
+                      Late
+                    </span>
+                    <strong className="text-slate-900 dark:text-white font-mono">{stats.lateDaysCount}</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-6">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-[#c24f46]" />
+                      Absent
+                    </span>
+                    <strong className="text-slate-900 dark:text-white font-mono">{stats.absentCount}</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-6">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-[#7a6fb3]" />
+                      Leave
+                    </span>
+                    <strong className="text-slate-900 dark:text-white font-mono">{stats.leaveCount}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Penalty Strip (Late Arrival & Salary Deduction) */}
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-white/5 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Late arrival</span>
+                  <strong className="text-rose-600 dark:text-rose-400 font-bold font-mono">
+                    {stats.totalLateMinutes} <span className="font-normal text-slate-400">min</span>
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Salary deduction</span>
+                  <strong className="text-rose-600 dark:text-rose-400 font-bold font-mono">
+                    {stats.totalDeductionsDays} <span className="font-normal text-slate-400">day</span>
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ====================================================== */}
+        {/* RIGHT SIDEBAR COLUMN (4 Cols: Profile & Warnings)      */}
+        {/* ====================================================== */}
+        <div className="lg:col-span-4 space-y-5">
+          {/* 1. EMPLOYEE PROFILE CARD (With Botanical Leaf Artwork) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 overflow-hidden shadow-xs">
+            {/* Top Botanical Artwork Banner */}
+            <div className="relative h-32 bg-[#e8eee9] dark:bg-emerald-950/30 overflow-hidden flex items-center justify-between p-4">
+              <span className="text-[10px] font-bold tracking-widest text-[#183b32] dark:text-emerald-400 uppercase z-10">
+                EMPLOYEE PROFILE
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-white z-10"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {/* Crisp SVG Botanical Leaf Illustration */}
+              <svg
+                className="absolute right-0 top-0 h-full w-44 text-[#8ea894] dark:text-emerald-700/40 pointer-events-none"
+                viewBox="0 0 160 120"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M120,120 Q110,60 160,20" />
+                <path d="M120,120 Q140,80 160,60" />
+                <path d="M110,120 Q80,70 120,20 C130,40 140,60 110,120 Z" fill="rgba(142,168,148,0.2)" />
+                <path d="M90,120 Q50,75 80,30 C95,50 110,75 90,120 Z" fill="rgba(142,168,148,0.2)" />
+                <path d="M130,120 Q120,40 150,10 C160,30 165,55 130,120 Z" fill="rgba(142,168,148,0.15)" />
+              </svg>
+            </div>
+
+            {/* Profile Avatar & Details */}
+            <div className="p-6 pt-0 relative space-y-4">
+              {/* Overlapping Pine Green Circle Avatar */}
+              <div className="-mt-12 mb-3">
+                <div className="w-20 h-20 rounded-full bg-[#183b32] border-4 border-white dark:border-slate-900 flex items-center justify-center text-white font-extrabold text-xl shadow-md">
+                  {userInitials}
+                </div>
+              </div>
+
+              {/* Name & Designation */}
+              <div className="space-y-1">
+                <h3 className="text-2xl font-black text-[#111827] dark:text-white tracking-tight">
+                  {currentUser.name}
+                </h3>
+                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 block">
+                  {currentUser.designation || 'Developer'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#183b32] dark:text-emerald-400 pt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-[#183b32] dark:bg-emerald-400" />
+                  Active member
+                </span>
+              </div>
+
+              {/* Metadata List */}
+              <div className="space-y-2.5 pt-4 border-t border-slate-100 dark:border-white/5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-2">
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                    Employee ID
+                  </span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {currentUser.id.replace('user-', '')}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-2">
+                    <Award className="w-3.5 h-3.5 text-slate-400" />
+                    Department
+                  </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">
+                    {currentUser.department || 'SEO'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    Office hours
+                  </span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {officeStart} – {officeEnd}
+                  </span>
+                </div>
+              </div>
+
+              {/* Full Width Dark Pine Green CTA Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="w-full py-3 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                >
+                  <span>View profile</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. WARNINGS CARD */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                <h4 className="text-xs font-bold text-[#111827] dark:text-white">
+                  Warnings
+                </h4>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowWarningsModal(true)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Soft Green Card Container */}
+            <div className="p-4 rounded-2xl bg-[#eef5f1] dark:bg-emerald-950/30 border border-[#d6e5da] dark:border-emerald-900/30 flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-[#d6e8dc] dark:bg-emerald-900/50 text-[#183b32] dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5 stroke-[2.5]" />
+              </div>
+
+              <div>
+                <h5 className="text-xs font-bold text-[#111827] dark:text-white">
+                  0 active warnings
+                </h5>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                  Great! There are no active warnings on your account.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 7. LATE POLICY DETAILS MODAL                             */}
+      {/* MODALS & POPUPS                                          */}
       {/* ======================================================== */}
+
+      {/* Policy Modal */}
       <AnimatePresence>
         {showPolicyModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-3xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/10 p-6 sm:p-7 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
+              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#183b32] dark:text-emerald-400" />
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Late Fine &amp; Shift Terms
+                    Company Punctuality &amp; Late Policy
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowPolicyModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-3.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 <p>
-                  Official shift starts at <strong className="text-slate-900 dark:text-white font-bold">{officeStart}</strong> with a <strong className="text-slate-900 dark:text-white font-bold">{policy?.gracePeriodMinutes || 15}-minute grace period</strong>.
+                  Official shift schedule is <strong className="text-slate-900 dark:text-white font-bold">{officeStart} – {officeEnd}</strong> with a <strong className="text-slate-900 dark:text-white font-bold">{graceMins}-minute grace period</strong>.
                 </p>
 
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 space-y-2">
-                  <div className="flex justify-between items-center">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 space-y-2">
+                  <div className="flex justify-between">
                     <span>16m &mdash; 30m late:</span>
-                    <strong className="text-rose-600 dark:text-rose-400 font-bold">0.25 day salary deduction</strong>
+                    <strong className="text-rose-600 font-bold">0.25 day salary deduction</strong>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between">
                     <span>31m &mdash; 60m late:</span>
-                    <strong className="text-rose-600 dark:text-rose-400 font-bold">0.5 day salary deduction</strong>
+                    <strong className="text-rose-600 font-bold">0.5 day salary deduction</strong>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between">
                     <span>&gt; 60m late:</span>
-                    <strong className="text-rose-600 dark:text-rose-400 font-bold">1.0 full day salary deduction</strong>
+                    <strong className="text-rose-600 font-bold">1.0 full day salary deduction</strong>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span>Unannounced absence:</span>
-                    <strong className="text-rose-600 dark:text-rose-400 font-bold">1.0 day salary deduction</strong>
+                  <div className="flex justify-between">
+                    <span>Unexcused absence:</span>
+                    <strong className="text-rose-600 font-bold">1.0 day salary deduction</strong>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-slate-400">
-                  Late fines and unexcused leaves are automatically computed at month-end payroll reconciliation. To dispute an accidental late clock-in, submit a Late Excuse request from the Requests Desk.
+                  Late arrivals and deduction penalties are reconciled with monthly payroll. For accidental punches, submit a Late Excuse request.
                 </p>
               </div>
 
@@ -1373,7 +1088,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setShowPolicyModal(false)}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-500/20"
+                  className="px-5 py-2.5 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs cursor-pointer shadow-xs"
                 >
                   Understood
                 </button>
@@ -1383,218 +1098,44 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         )}
       </AnimatePresence>
 
-      {/* ======================================================== */}
-      {/* 8. TOTAL DEDUCTIONS BREAKDOWN MODAL                      */}
-      {/* ======================================================== */}
-      <AnimatePresence>
-        {showDeductionsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/10 p-6 sm:p-7 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600">
-                    <AlertCircle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Monthly Deductions Breakdown
-                    </h3>
-                    <span className="text-[11px] text-slate-400">October 2026 Audit</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDeductionsModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-900/40 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-rose-800 dark:text-rose-300 block">Total Deductions Applied</span>
-                    <span className="text-[11px] text-rose-600 dark:text-rose-400">Late arrivals + absent days combined</span>
-                  </div>
-                  <span className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">
-                    {stats.totalDeductionsDays} days
-                  </span>
-                </div>
-
-                <div className="max-h-60 overflow-y-auto space-y-2 pr-1 text-xs">
-                  {stats.lateBreakdownList.length === 0 && stats.absentCount === 0 ? (
-                    <div className="py-8 text-center text-slate-400">
-                      No salary deductions logged this month! Keep up the great punctuality.
-                    </div>
-                  ) : (
-                    <>
-                      {stats.lateBreakdownList.map((item, i) => (
-                        <div key={i} className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{item.date}</span>
-                            <span className="block text-[11px] text-slate-400">Late Arrival ({item.lateMins} minutes late)</span>
-                          </div>
-                          <span className="font-bold text-rose-600 dark:text-rose-400">{item.fineDays} day deduction</span>
-                        </div>
-                      ))}
-
-                      {stats.absentRecords.map((item, i) => (
-                        <div key={'abs-' + i} className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{item.date}</span>
-                            <span className="block text-[11px] text-slate-400">Unexcused Absence</span>
-                          </div>
-                          <span className="font-bold text-rose-600 dark:text-rose-400">1.0 day deduction</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDeductionsModal(false);
-                    onNavigate?.('emp_requests');
-                  }}
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Submit Late Waiver Request</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowDeductionsModal(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ======================================================== */}
-      {/* 9. DISCIPLINARY WARNINGS MODAL                           */}
-      {/* ======================================================== */}
-      <AnimatePresence>
-        {showWarningsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-3xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/10 p-6 sm:p-7 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Disciplinary Warnings Notice
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowWarningsModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {stats.lateDaysCount >= 3 ? (
-                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 space-y-2">
-                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>Attendance Advisory: High Late Frequency</span>
-                  </div>
-                  <p className="text-xs text-amber-700 dark:text-amber-300/90 leading-relaxed">
-                    You have accumulated {stats.lateDaysCount} late arrivals this month exceeding the allowed 2-incident threshold. Please adhere to the {officeStart} schedule to avoid escalated HR review.
-                  </p>
-                </div>
-              ) : (
-                <div className="py-8 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Pristine Conduct Record</h4>
-                  <p className="text-xs text-slate-400">
-                    No active warnings or disciplinary notices on your profile.
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => setShowWarningsModal(false)}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-500/20"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ======================================================== */}
-      {/* 10. ATTENDANCE DAY INSPECTOR MODAL                       */}
-      {/* ======================================================== */}
+      {/* Day Inspector Modal */}
       <AnimatePresence>
         {selectedDayForInspector && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-3xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/10 p-6 sm:p-7 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
+              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                    <CalendarCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Attendance Inspector
-                    </h3>
-                    <span className="text-[11px] text-slate-400">Date: {selectedDayForInspector.date}</span>
-                  </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Attendance Inspector
+                  </h3>
+                  <span className="text-xs text-slate-400 font-mono">Date: {selectedDayForInspector.date}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedDayForInspector(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
-                    <span className="text-[11px] text-slate-400 block mb-1">Check-In Time</span>
-                    <strong className="text-sm font-bold text-slate-900 dark:text-white font-mono">
-                      {selectedDayForInspector.clockIn || 'Not recorded'}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-1">Check In</span>
+                    <strong className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                      {selectedDayForInspector.clockIn || 'Not logged'}
                     </strong>
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
-                    <span className="text-[11px] text-slate-400 block mb-1">Check-Out Time</span>
-                    <strong className="text-sm font-bold text-slate-900 dark:text-white font-mono">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-1">Check Out</span>
+                    <strong className="text-sm font-bold font-mono text-slate-900 dark:text-white">
                       {selectedDayForInspector.clockOut || 'Not logged'}
                     </strong>
                   </div>
@@ -1607,7 +1148,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                   </div>
 
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Work Duration:</span>
+                    <span className="text-slate-400">Total Work Duration:</span>
                     <span className="font-bold">
                       {selectedDayForInspector.totalWorkMinutes
                         ? `${Math.floor(selectedDayForInspector.totalWorkMinutes / 60)}h ${selectedDayForInspector.totalWorkMinutes % 60}m`
@@ -1615,40 +1156,73 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                     </span>
                   </div>
 
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Overtime Logged:</span>
-                    <span className="font-bold text-emerald-500">
-                      {selectedDayForInspector.overtimeHours ? `${selectedDayForInspector.overtimeHours} hours` : '0h'}
-                    </span>
-                  </div>
-
                   {selectedDayForInspector.isLate && (
-                    <div className="flex justify-between pt-1.5 border-t border-slate-200/60 dark:border-white/5 text-rose-500">
+                    <div className="flex justify-between pt-1.5 border-t border-slate-200/60 dark:border-white/5 text-rose-500 font-bold">
                       <span>Late Penalty:</span>
-                      <span className="font-bold">
-                        {getLateFineTier(getLateMinutes(selectedDayForInspector, officeStart)).fineStr || 'Flagged Late'}
+                      <span>
+                        {getLateFineTier(getLateMinutes(selectedDayForInspector, officeStart)).fineStr || 'Late Fine'}
                       </span>
                     </div>
                   )}
                 </div>
-
-                {selectedDayForInspector.managerRemarks && (
-                  <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30">
-                    <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 block mb-1">
-                      Manager Remarks
-                    </span>
-                    <p className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
-                      {selectedDayForInspector.managerRemarks}
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="pt-2 text-right">
                 <button
                   type="button"
                   onClick={() => setSelectedDayForInspector(null)}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-500/20"
+                  className="px-5 py-2.5 rounded-xl bg-[#183b32] text-white font-bold text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Warnings Details Modal */}
+      <AnimatePresence>
+        {showWarningsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Account Conduct &amp; Warnings
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowWarningsModal(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#eef5f1] dark:bg-emerald-950/30 border border-[#d6e5da] dark:border-emerald-900/30 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#d6e8dc] text-[#183b32] flex items-center justify-center shrink-0">
+                  <Check className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-[#111827] dark:text-white">
+                    0 Active Disciplinary Warnings
+                  </h5>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                    Your profile conduct is in good standing with zero recorded infractions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowWarningsModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-[#183b32] text-white font-bold text-xs"
                 >
                   Close
                 </button>
@@ -1673,6 +1247,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
           onClose={() => setShowEODModal(false)}
         />
       )}
-    </motion.div>
+    </div>
   );
 }

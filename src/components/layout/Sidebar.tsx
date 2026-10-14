@@ -312,30 +312,36 @@ export function Sidebar({
                 <button
                   key={item.view}
                   onClick={() => onSelectView(item.view)}
-                  className={`relative w-full text-left px-3 py-2 rounded-[6px] transition-all flex items-center justify-between text-xs font-medium group ${
+                  className={`relative w-full text-left px-3.5 py-2.5 rounded-xl transition-all flex items-center justify-between text-xs font-medium group ${
                     isActive
-                      ? 'bg-slate-100 dark:bg-[#1a1f2e] text-slate-900 dark:text-white font-semibold'
+                      ? role === 'employee'
+                        ? 'bg-[#183b32] text-white font-semibold shadow-xs'
+                        : 'bg-slate-100 dark:bg-[#1a1f2e] text-slate-900 dark:text-white font-semibold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/[0.04]'
                   }`}
                 >
-                  {/* Left Red Vertical Accent Bar when active (Matches Reference Image) */}
-                  {isActive && (
+                  {/* Left Red Vertical Accent Bar when active (for non-employee) */}
+                  {isActive && role !== 'employee' && (
                     <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
                   )}
 
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`} />
+                    <Icon className={`w-4 h-4 transition-colors ${isActive ? (role === 'employee' ? 'text-white' : 'text-slate-900 dark:text-white') : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`} />
                     <span className="tracking-wide">{item.label}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     {item.badgeText && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-bold">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                        isActive && role === 'employee'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-slate-200/80 dark:bg-white/10 text-slate-700 dark:text-slate-300'
+                      }`}>
                         {item.badgeText}
                       </span>
                     )}
 
-                    {/* Red Dot Indicator (Matches Reference Image) */}
+                    {/* Red Dot Indicator */}
                     {item.hasRedDot && (
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]" />
                     )}
