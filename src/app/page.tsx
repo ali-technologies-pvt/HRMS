@@ -112,7 +112,7 @@ function HRMSPortalContent() {
 
       // Employee Views
       case 'emp_dashboard':
-        return <EmployeeDashboard />;
+        return <EmployeeDashboard onNavigate={setCurrentView} />;
       case 'emp_tasks':
         return <MyTasksDesk />;
       case 'emp_attendance':
