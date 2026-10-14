@@ -27,6 +27,7 @@ import {
   CalendarDays,
   Megaphone,
   MessageSquare,
+  LayoutDashboard,
   X as CloseIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,6 +51,7 @@ export type PortalView =
   | 'hr_payroll'
   | 'hr_announcements'
   // Employee
+  | 'emp_dashboard'
   | 'emp_tasks'
   | 'emp_attendance'
   | 'emp_requests'
@@ -136,7 +138,8 @@ export function Sidebar({
     }
   } else if (isEmployee) {
     menuItems = [
-      { view: 'emp_tasks', label: 'Task', icon: CheckSquare, badgeText: `${myPendingTasksCount}` },
+      { view: 'emp_dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { view: 'emp_tasks', label: 'Task Board', icon: CheckSquare, badgeText: `${myPendingTasksCount}` },
       { view: 'team_chat', label: 'Team Chat', icon: MessageSquare, badgeText: 'Live' },
       { view: 'emp_attendance', label: 'Shift Clock', icon: Clock },
       { view: 'emp_requests', label: 'Requests', icon: Bell, hasRedDot: pendingRequestsCount > 0 },

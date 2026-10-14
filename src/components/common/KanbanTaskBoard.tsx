@@ -286,8 +286,28 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
 
   // Status Change handler with real-time manager notification & activity logging
   const handleStatusTransition = (task: Task, newStatus: TaskStatus) => {
-    updateTaskStatus(task.id, newStatus);
+    // STRICT BUSINESS RULE: Employee cannot directly complete a task.
+    // When employee marks a task done, it submits to 'needs_review' for manager inspection!
+    const effectiveStatus: TaskStatus = (mode === 'employee' && newStatus === 'completed')
+      ? 'needs_review'
+      : newStatus;
+
+    updateTaskStatus(task.id, effectiveStatus);
     setMenuOpenTaskId(null);
+
+    if (mode === 'employee' && (newStatus === 'completed' || newStatus === 'needs_review')) {
+      showNotification(
+        'Submitted for Review',
+        `"${task.title}" has been submitted to your manager for review. Only manager can approve and mark it Done.`,
+        'info'
+      );
+    } else if (newStatus === 'completed') {
+      showNotification(
+        'Task Approved & Completed',
+        `"${task.title}" has been officially approved.`,
+        'success'
+      );
+    }
 
     // Activity log entry
     const newActivity: ActivityLogItem = {
@@ -295,28 +315,28 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
       userName: currentUser.name,
       userAvatar: currentUser.avatarUrl,
       action:
-        newStatus === 'completed'
-          ? 'completed task'
-          : newStatus === 'needs_review'
+        effectiveStatus === 'completed'
+          ? 'approved task'
+          : effectiveStatus === 'needs_review'
           ? 'submitted for review'
-          : newStatus === 'in_progress'
+          : effectiveStatus === 'in_progress'
           ? 'started working on'
           : 'moved to backlog',
       taskTitle: task.title,
       time: 'Just now',
       color:
-        newStatus === 'completed'
+        effectiveStatus === 'completed'
           ? 'emerald'
-          : newStatus === 'needs_review'
+          : effectiveStatus === 'needs_review'
           ? 'violet'
-          : newStatus === 'in_progress'
+          : effectiveStatus === 'in_progress'
           ? 'cyan'
           : 'slate'
     };
     setActivities(prev => [newActivity, ...prev.slice(0, 9)]);
 
-    // If completed, fire celebration
-    if (newStatus === 'completed') {
+    // If completed (by manager), fire celebration
+    if (effectiveStatus === 'completed') {
       try {
         confetti({
           particleCount: 90,
@@ -906,41 +926,59 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                                     <span>On Progress</span>
                                     {t.status === 'in_progress' && <Check className="w-3 h-3 text-sky-500" />}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusTransition(t, 'needs_review')}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center justify-between"
-                                  >
-                                    <span>Needs Review</span>
-                                    {(t.status === 'needs_review' || t.status === 'blocked') && (
-                                      <Check className="w-3 h-3 text-violet-500" />
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStatusTransition(t, 'completed')}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-bold"
-                                  >
-                                    <span>Done 🎉</span>
-                                    {t.status === 'completed' && <Check className="w-3 h-3 text-emerald-500" />}
-                                  </button>
+                                  {mode === 'employee' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStatusTransition(t, 'needs_review')}
+                                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center justify-between text-violet-600 dark:text-violet-400 font-bold"
+                                    >
+                                      <span>Submit for Review 📤</span>
+                                      {(t.status === 'needs_review' || t.status === 'blocked') && (
+                                        <Check className="w-3 h-3 text-violet-500" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStatusTransition(t, 'needs_review')}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center justify-between"
+                                      >
+                                        <span>Needs Review</span>
+                                        {(t.status === 'needs_review' || t.status === 'blocked') && (
+                                          <Check className="w-3 h-3 text-violet-500" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStatusTransition(t, 'completed')}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-bold"
+                                      >
+                                        <span>Approve & Done ✓</span>
+                                        {t.status === 'completed' && <Check className="w-3 h-3 text-emerald-500" />}
+                                      </button>
+                                    </>
+                                  )}
 
-                                  <div className="border-t border-slate-100 dark:border-white/5 my-1" />
-
-                                  {/* Delete Task Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMenuOpenTaskId(null);
-                                      if (window.confirm(`Are you sure you want to delete task "${t.title}"?`)) {
-                                        deleteTask(t.id);
-                                      }
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-1.5 font-bold"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    <span>Delete Task</span>
-                                  </button>
+                                  {/* Delete Task Button (Only for Manager/Admin, STRICTLY hidden for employee) */}
+                                  {mode !== 'employee' && currentUser.role !== 'employee' && (
+                                    <>
+                                      <div className="border-t border-slate-100 dark:border-white/5 my-1" />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setMenuOpenTaskId(null);
+                                          if (window.confirm(`Are you sure you want to delete task "${t.title}"?`)) {
+                                            deleteTask(t.id);
+                                          }
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-1.5 font-bold"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                        <span>Delete Task</span>
+                                      </button>
+                                    </>
+                                  )}
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -1111,8 +1149,8 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                   )}
                 </div>
 
-                {/* + Add Card Button at bottom of column */}
-                {!isInlineActive && (
+                {/* + Add Card Button at bottom of column (Managers Only, never employee) */}
+                {!isInlineActive && mode !== 'employee' && (
                   <button
                     type="button"
                     onClick={() => {

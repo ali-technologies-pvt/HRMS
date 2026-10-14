@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Open_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const openSans = Open_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
@@ -54,7 +54,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body
-        className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} font-sans antialiased bg-[#f6f8fc] dark:bg-[#07090e] text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300`}
+        className={`${openSans.variable} ${jetbrainsMono.variable} font-sans antialiased bg-[#f6f8fc] dark:bg-[#07090e] text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300`}
       >
         {children}
         <script

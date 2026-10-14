@@ -30,6 +30,7 @@ import { LeaveManagementDesk } from '@/components/hr/LeaveManagementDesk';
 import { PayrollDesk } from '@/components/hr/PayrollDesk';
 
 // Employee Components
+import { EmployeeDashboard } from '@/components/employee/EmployeeDashboard';
 import { MyTasksDesk } from '@/components/employee/MyTasksDesk';
 import { PunchClockCard } from '@/components/employee/PunchClockCard';
 import { EmployeeRequestsDesk } from '@/components/employee/EmployeeRequestsDesk';
@@ -65,7 +66,7 @@ function HRMSPortalContent() {
       setUnifiedTab('manager');
       setCurrentView('manager_dashboard');
     } else if (currentUser.role === 'employee') {
-      setCurrentView('emp_tasks');
+      setCurrentView('emp_dashboard');
     }
   }, [currentUser?.role]);
 
@@ -110,6 +111,8 @@ function HRMSPortalContent() {
         return <BroadcastDesk />;
 
       // Employee Views
+      case 'emp_dashboard':
+        return <EmployeeDashboard />;
       case 'emp_tasks':
         return <MyTasksDesk />;
       case 'emp_attendance':
