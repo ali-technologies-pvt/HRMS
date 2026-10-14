@@ -44,6 +44,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { TaskDetailModal } from './TaskDetailModal';
 
 interface KanbanTaskBoardProps {
   mode: 'manager' | 'employee';
@@ -154,6 +155,9 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
 
   // Active card options menu dropdown
   const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null);
+
+  // Task click detail popup modal
+  const [selectedTaskForModal, setSelectedTaskForModal] = useState<Task | null>(null);
 
   // Live timer tick (throttled to 10s to keep UI lightweight and prevent lag)
   const [, setTick] = useState(0);
@@ -875,7 +879,8 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         whileHover={{ y: -3, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
-                        className={`p-3.5 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md rounded-[4px] border transition-all duration-200 shadow-sm hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)] ${
+                        onClick={() => setSelectedTaskForModal(t)}
+                        className={`p-3.5 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md rounded-[4px] border transition-all duration-200 shadow-sm hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)] cursor-pointer select-none ${
                           isWorking
                             ? 'border-sky-400 dark:border-cyan-400 ring-2 ring-sky-400/25 shadow-[0_0_20px_rgba(14,165,233,0.2)]'
                             : 'border-slate-200/90 dark:border-white/10 hover:border-sky-400/50'
@@ -889,10 +894,13 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                             {t.category || 'Task'}
                           </span>
 
-                          <div className="relative">
+                          <div className="relative" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={() => setMenuOpenTaskId(menuOpenTaskId === t.id ? null : t.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpenTaskId(menuOpenTaskId === t.id ? null : t.id);
+                              }}
                               className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-[2px]"
                             >
                               <MoreHorizontal className="w-3.5 h-3.5" />
@@ -905,6 +913,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                                   initial={{ opacity: 0, scale: 0.95, y: -4 }}
                                   animate={{ opacity: 1, scale: 1, y: 0 }}
                                   exit={{ opacity: 0, scale: 0.95 }}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="absolute right-0 top-6 z-30 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/15 rounded-[3px] shadow-xl py-1 text-xs font-mono"
                                 >
                                   <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider text-slate-400 font-bold border-b border-slate-100 dark:border-white/5">
@@ -1012,7 +1021,10 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                             {/* Employee can toggle timer */}
                             <button
                               type="button"
-                              onClick={() => toggleTaskTimer(t.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTaskTimer(t.id);
+                              }}
                               className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold flex items-center gap-1 transition-all ${
                                 isWorking
                                   ? 'bg-amber-500 text-white hover:bg-amber-600'
@@ -1863,6 +1875,18 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Detailed Task Inspector & Submissions Modal */}
+      <TaskDetailModal
+        task={selectedTaskForModal}
+        isOpen={!!selectedTaskForModal}
+        onClose={() => setSelectedTaskForModal(null)}
+        mode={mode}
+        onStatusChange={(task, newStatus) => {
+          handleStatusTransition(task, newStatus);
+          setSelectedTaskForModal(prev => prev ? { ...prev, status: newStatus } : null);
+        }}
+      />
     </div>
   );
 }

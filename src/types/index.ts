@@ -75,6 +75,8 @@ export interface Task {
   startedAt?: string;
   completedAt?: string;
   timerActive: boolean;
+  deliverableNotes?: string;
+  deliverableUrl?: string;
   createdAt: string;
 }
 
@@ -125,7 +127,7 @@ export interface AttendanceRecord {
   clockIn: string; // HH:mm or ISO
   clockOut?: string;
   totalWorkMinutes: number;
-  status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+  status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave' | 'absent' | 'holiday';
   isLate: boolean;
   lateReason?: string;
   overtimeHours: number;

@@ -86,7 +86,7 @@ interface AppDataContextType {
     date: string; // YYYY-MM-DD
     clockIn: string; // HH:mm
     clockOut?: string; // HH:mm
-    status?: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    status?: AttendanceRecord['status'];
     managerRemarks?: string;
   }) => void;
   bulkBackfillAttendance: (records: {
@@ -96,7 +96,7 @@ interface AppDataContextType {
     date: string;
     clockIn: string;
     clockOut: string;
-    status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    status: AttendanceRecord['status'];
     managerRemarks?: string;
   }[]) => void;
   deleteAttendanceRecord: (id: string) => void;
@@ -706,7 +706,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     date: string; // YYYY-MM-DD
     clockIn: string; // HH:mm
     clockOut?: string; // HH:mm
-    status?: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    status?: AttendanceRecord['status'];
     managerRemarks?: string;
   }) => {
     const userObj = users.find(u => u.id === record.userId) || currentUser;
@@ -786,7 +786,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     date: string;
     clockIn: string;
     clockOut: string;
-    status: 'present' | 'late' | 'half_day' | 'wfh' | 'leave';
+    status: AttendanceRecord['status'];
     managerRemarks?: string;
   }[]) => {
     let currentList = [...attendance];
