@@ -138,12 +138,14 @@ function HRMSPortalContent() {
       {/* Dynamic Apple-style Liquid Mesh Ambient Glow */}
       <AmbientBackground />
 
-      {/* Floating Crystal Topbar */}
-      <Topbar
-        onOpenChat={() => setCurrentView('team_chat')}
-        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-        isMobileMenuOpen={mobileMenuOpen}
-      />
+      {/* Floating Crystal Topbar (Only for Admins/Managers/HR; Employee uses dedicated workspace header) */}
+      {currentUser.role !== 'employee' && (
+        <Topbar
+          onOpenChat={() => setCurrentView('team_chat')}
+          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+          isMobileMenuOpen={mobileMenuOpen}
+        />
+      )}
 
       {/* Main Body with Sidebar & Content */}
       <div className="flex-1 flex relative z-10 w-full min-w-0">

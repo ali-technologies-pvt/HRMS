@@ -179,11 +179,11 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     return 0;
   }, [isShiftCompleted, isClockedIn, todayRecord, currentShiftSeconds]);
 
-  // Formatted big display: e.g. "00h 51m"
+  // Formatted big display: e.g. "0h 51m"
   const formattedHoursAndMins = useMemo(() => {
     const hrs = Math.floor(workedMinutesToday / 60);
     const mins = workedMinutesToday % 60;
-    return `${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
+    return `${hrs}h ${String(mins).padStart(2, '0')}m`;
   }, [workedMinutesToday]);
 
   // Shift progress percentage
@@ -199,6 +199,41 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
   const officeStart = policy?.officeStartTime || '09:30';
   const officeEnd = policy?.officeEndTime || '18:00';
   const graceMins = policy?.gracePeriodMinutes || 15;
+
+  // Parse office window in minutes for timeline
+  const officeWindow = useMemo(() => {
+    const [startH, startM] = officeStart.split(':').map(Number);
+    const [endH, endM] = officeEnd.split(':').map(Number);
+    const startTotal = startH * 60 + startM; // 09:30 -> 570 mins
+    const endTotal = endH * 60 + endM; // 18:00 -> 1080 mins
+    const totalSpan = Math.max(endTotal - startTotal, 60); // 510 mins
+
+    const parseToMins = (tStr?: string) => {
+      if (!tStr) return null;
+      const parts = tStr.match(/(\d{1,2}):(\d{2})/);
+      if (!parts) return null;
+      let h = parseInt(parts[1], 10);
+      const m = parseInt(parts[2], 10);
+      if (tStr.toLowerCase().includes('pm') && h < 12) h += 12;
+      if (tStr.toLowerCase().includes('am') && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    const inMins = parseToMins(todayRecord?.clockIn) ?? 16 * 60 + 45; // default 16:45
+    const outMins = parseToMins(todayRecord?.clockOut) ?? (isClockedIn ? inMins + workedMinutesToday : 17 * 60 + 36); // default 17:36
+
+    const startPct = Math.max(0, Math.min(100, ((inMins - startTotal) / totalSpan) * 100));
+    const endPct = Math.max(startPct, Math.min(100, ((outMins - startTotal) / totalSpan) * 100));
+    const widthPct = Math.max(endPct - startPct, 3);
+    const midPct = startPct + widthPct / 2;
+
+    return {
+      startPct,
+      endPct,
+      widthPct,
+      midPct
+    };
+  }, [officeStart, officeEnd, todayRecord, isClockedIn, workedMinutesToday]);
 
   // Filter attendance records strictly for currentUser (current month: October 2026)
   const myAllRecords = useMemo(() => {
@@ -310,14 +345,6 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
     }
   };
 
-  // User initials for profile card
-  const userInitials = useMemo(() => {
-    if (!currentUser?.name) return 'EMP';
-    const parts = currentUser.name.trim().split(' ');
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    return parts[0].slice(0, 3).toUpperCase();
-  }, [currentUser?.name]);
-
   return (
     <div className="space-y-6 pb-12 font-sans text-slate-800 dark:text-slate-100 max-w-7xl mx-auto">
       {/* ======================================================== */}
@@ -400,163 +427,209 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             </div>
           )}
 
-          {/* 3. YOUR SHIFT COMMAND CARD (Exact Match to Reference UI) */}
+          {/* 3. TODAY'S SHIFT CARD (WITH VISUAL TIMELINE MATCHING SCREENSHOT) */}
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 p-6 sm:p-7 shadow-xs space-y-6">
-            {/* Shift Header & Progress Bar */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-                  YOUR SHIFT
+            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase block">
+              TODAY&apos;S SHIFT
+            </span>
+
+            {/* Top Row: Time Logged + Target Bar + Check In / Check Out Boxes */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+              {/* Left: Status Badge & Big Time Logged */}
+              <div className="space-y-1.5 shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#e2f3e8] text-[#14342b] border border-[#c4e6ce]">
+                  <span className="w-2 h-2 rounded-full bg-[#1c3f6e]" />
+                  {isClockedIn ? 'Shift in progress' : isShiftCompleted ? 'Shift concluded' : 'Not started'}
                 </span>
 
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                        isClockedIn
-                          ? 'bg-[#e2f3e8] text-[#14342b] border border-[#c4e6ce]'
-                          : isShiftCompleted
-                          ? 'bg-[#eaf1ec] text-[#183b32] border border-[#d6e5da]'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${isClockedIn ? 'bg-[#183b32] animate-ping' : isShiftCompleted ? 'bg-[#183b32]' : 'bg-slate-400'}`} />
-                      {isClockedIn ? 'Shift in progress' : isShiftCompleted ? 'Shift concluded' : 'Not started'}
-                    </span>
-                    <span className="text-xs text-slate-400">| Target: 8h (480m)</span>
+                <div className="pt-1">
+                  <div className="text-4xl sm:text-5xl font-black text-[#111827] dark:text-white tracking-tight font-mono">
+                    {formattedHoursAndMins}
                   </div>
-
-                  <span className="text-base font-extrabold text-[#111827] dark:text-white font-mono">
-                    {shiftProgressPercentage}%
+                  <span className="text-xs text-slate-400 font-medium block mt-0.5">
+                    Time logged
                   </span>
                 </div>
               </div>
 
-              {/* Minimal Dark Pine Green Progress Track */}
-              <div className="w-full bg-[#e5e9e6] dark:bg-white/[0.08] h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-[#183b32] dark:bg-emerald-500 h-full rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${shiftProgressPercentage}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Time Logged Huge Typography */}
-            <div>
-              <div className="text-4xl sm:text-5xl font-black text-[#111827] dark:text-white tracking-tight font-mono">
-                {formattedHoursAndMins}
-              </div>
-              <span className="text-xs text-slate-400 font-medium block mt-1">
-                Time logged
-              </span>
-            </div>
-
-            {/* Dual Check-In & Check-Out Boxes */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* CHECK IN Box (Soft light greenish/gray tint) */}
-              <div className="p-5 rounded-2xl bg-[#f0f4f1] dark:bg-white/[0.03] border border-[#e2e9e4] dark:border-white/5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 flex items-center justify-center text-[#183b32] dark:text-emerald-400 shrink-0 shadow-2xs">
-                  <LogIn className="w-5 h-5" />
+              {/* Center: Target Bar */}
+              <div className="flex-1 max-w-xs space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>Target: 8h (480m)</span>
+                  <span className="font-extrabold text-[#111827] dark:text-white font-mono">{shiftProgressPercentage}%</span>
                 </div>
+                <div className="w-full bg-[#e5e9e6] dark:bg-white/[0.08] h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#1c3f6e] dark:bg-sky-500 h-full rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${shiftProgressPercentage}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Right: Check In & Check Out Boxes */}
+              <div className="flex items-center gap-3">
+                {/* Check In Box */}
+                <div className="px-4 py-3 rounded-2xl bg-[#f0f4f1] dark:bg-white/[0.03] border border-[#e2e9e4] dark:border-white/5 flex items-center gap-3 min-w-[130px]">
+                  <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
+                    <LogIn className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">Check in</span>
+                    <strong className="text-lg font-bold font-mono text-[#111827] dark:text-white">
+                      {todayRecord?.clockIn || '--:--'}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Check Out Box */}
+                <div className="px-4 py-3 rounded-2xl bg-[#f0f4f1] dark:bg-white/[0.03] border border-[#e2e9e4] dark:border-white/5 flex items-center gap-3 min-w-[130px]">
+                  <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
+                    <LogOut className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">Check out</span>
+                    <strong className="text-lg font-bold font-mono text-[#111827] dark:text-white">
+                      {todayRecord?.clockOut || (isClockedIn ? 'Active' : '--:--')}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SHIFT TIMELINE GRAPHIC (Exactly from Reference Mockup) */}
+            <div className="pt-4 border-t border-slate-100 dark:border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div>
-                  <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block">
-                    CHECK IN
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    SHIFT TIMELINE
                   </span>
-                  <div className="text-2xl sm:text-3xl font-extrabold text-[#111827] dark:text-white tracking-tight font-mono">
-                    {todayRecord?.clockIn || '--:--'}
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Recorded work session
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#1c3f6e]" />
+                    Logged time
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                    Office window
+                  </span>
+                  <span className="flex items-center gap-1 text-slate-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    {todayRecord?.clockOut ? `Completed at ${todayRecord.clockOut}` : 'In session'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Visual Timeline Track */}
+              <div className="relative pt-6 pb-2">
+                {/* Background Office Window Track (09:30 to 18:00) */}
+                <div className="w-full h-3 bg-[#e9edf3] dark:bg-white/[0.08] rounded-full relative overflow-visible">
+                  {/* Active Blue Session Segment */}
+                  {todayRecord?.clockIn && (
+                    <div
+                      className="absolute top-0 bottom-0 bg-[#1c3f6e] dark:bg-sky-500 rounded-full"
+                      style={{
+                        left: `${officeWindow.startPct}%`,
+                        width: `${officeWindow.widthPct}%`
+                      }}
+                    />
+                  )}
+
+                  {/* Start Pin with Dashed Line */}
+                  {todayRecord?.clockIn && (
+                    <div
+                      className="absolute -top-6 flex flex-col items-center -translate-x-1/2 pointer-events-none"
+                      style={{ left: `${officeWindow.startPct}%` }}
+                    >
+                      <span className="text-[10px] font-bold font-mono text-[#111827] dark:text-white mb-0.5">
+                        {todayRecord.clockIn}
+                      </span>
+                      <div className="w-2 h-2 rounded-full bg-[#111827] dark:bg-white border-2 border-white dark:border-slate-900 shadow-xs" />
+                      <div className="w-px h-3 border-l border-dashed border-slate-400" />
+                    </div>
+                  )}
+
+                  {/* End Pin with Dashed Line */}
+                  {todayRecord?.clockOut && (
+                    <div
+                      className="absolute -top-6 flex flex-col items-center -translate-x-1/2 pointer-events-none"
+                      style={{ left: `${officeWindow.endPct}%` }}
+                    >
+                      <span className="text-[10px] font-bold font-mono text-[#111827] dark:text-white mb-0.5">
+                        {todayRecord.clockOut}
+                      </span>
+                      <div className="w-2 h-2 rounded-full bg-[#111827] dark:bg-white border-2 border-white dark:border-slate-900 shadow-xs" />
+                      <div className="w-px h-3 border-l border-dashed border-slate-400" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Floating Pill Below Segment: "51 min logged" */}
+                {todayRecord?.clockIn && (
+                  <div
+                    className="absolute top-6 -translate-x-1/2 flex items-center justify-center pointer-events-none"
+                    style={{ left: `${officeWindow.midPct}%` }}
+                  >
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#e8f0fe] dark:bg-sky-950/60 text-[#1c3f6e] dark:text-sky-300 border border-[#c9dcf9] text-[10px] font-bold shadow-xs whitespace-nowrap">
+                      {workedMinutesToday > 0 ? `${workedMinutesToday} min logged` : '0 min'}
+                    </span>
                   </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">
-                    {todayRecord?.clockIn ? 'Recorded today' : 'Not logged yet'}
-                  </span>
+                )}
+
+                {/* Timeline Hour Axis Ticks */}
+                <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 pt-8">
+                  <span>09:30</span>
+                  <span>12:00</span>
+                  <span>14:00</span>
+                  <span>16:00</span>
+                  <span>18:00</span>
                 </div>
               </div>
 
-              {/* CHECK OUT Box (Deep Pine Green Card with subtle botanical watermark) */}
-              <div className="relative p-5 rounded-2xl bg-[#183b32] dark:bg-[#122e27] text-white flex items-center gap-4 overflow-hidden shadow-xs">
-                {/* Botanical curve decorative watermark */}
-                <svg
-                  className="absolute right-0 bottom-0 w-32 h-32 opacity-15 pointer-events-none text-white"
-                  viewBox="0 0 100 100"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M0,100 C40,90 60,40 100,0" />
-                  <path d="M20,100 C50,85 70,30 100,10" />
-                  <path d="M40,100 C60,80 80,20 100,20" />
-                </svg>
-
-                <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 z-10">
-                  <LogOut className="w-5 h-5" />
+              {/* Bottom Hours & Grace Row */}
+              <div className="flex items-center gap-6 pt-3 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Office hours {officeStart} – {officeEnd}</span>
                 </div>
-                <div className="z-10">
-                  <span className="text-[10px] font-bold tracking-wider text-emerald-200/80 uppercase block">
-                    CHECK OUT
-                  </span>
-                  <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono">
-                    {todayRecord?.clockOut || (isClockedIn ? 'In Progress' : '--:--')}
-                  </div>
-                  <span className="text-xs text-emerald-200/70 block mt-0.5">
-                    {isShiftCompleted
-                      ? 'Shift completed'
-                      : isClockedIn
-                      ? 'Click Punch Out when done'
-                      : 'Pending punch out'}
-                  </span>
+                <div className="h-3 w-px bg-slate-200 dark:bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <Hourglass className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Grace period: {graceMins} mins</span>
                 </div>
               </div>
+
+              {/* Quick Trigger Buttons */}
+              {!isClockedIn && !isShiftCompleted && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleClockIn}
+                    className="w-full py-3 rounded-xl bg-[#1c3f6e] hover:bg-[#163359] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>PUNCH IN (START SHIFT)</span>
+                  </button>
+                </div>
+              )}
+
+              {isClockedIn && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleClockOut}
+                    className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>PUNCH OUT (END SHIFT)</span>
+                  </button>
+                </div>
+              )}
             </div>
-
-            {/* Bottom Shift Info Strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500 dark:text-slate-400">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>
-                  {todayRecord?.clockOut
-                    ? `Completed at ${todayRecord.clockOut}`
-                    : todayRecord?.clockIn
-                    ? `In session since ${todayRecord.clockIn}`
-                    : 'Shift not started'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 sm:border-l sm:border-slate-200/80 dark:sm:border-white/10 sm:pl-3">
-                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>Office hours {officeStart} – {officeEnd}</span>
-              </div>
-
-              <div className="flex items-center gap-2 sm:border-l sm:border-slate-200/80 dark:sm:border-white/10 sm:pl-3">
-                <Hourglass className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>Grace period: {graceMins} mins</span>
-              </div>
-            </div>
-
-            {/* Punch In / Out Quick Trigger Controls */}
-            {!isClockedIn && !isShiftCompleted && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleClockIn}
-                  className="w-full py-3 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>PUNCH IN (START SHIFT)</span>
-                </button>
-              </div>
-            )}
-
-            {isClockedIn && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleClockOut}
-                  className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>PUNCH OUT (END SHIFT)</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* 4. 6 METRIC STATS ROW (Single Card with 6 Columns) */}
@@ -655,7 +728,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               <button
                 type="button"
                 onClick={() => setShowEODModal(true)}
-                className="px-4 py-2 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#1c3f6e] hover:bg-[#163359] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
               >
                 <FileCheck2 className="w-3.5 h-3.5" />
                 <span>Submit EOD report</span>
@@ -885,63 +958,67 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
         {/* RIGHT SIDEBAR COLUMN (4 Cols: Profile & Warnings)      */}
         {/* ====================================================== */}
         <div className="lg:col-span-4 space-y-5">
-          {/* 1. EMPLOYEE PROFILE CARD (With Botanical Leaf Artwork) */}
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 overflow-hidden shadow-xs">
-            {/* Top Botanical Artwork Banner */}
-            <div className="relative h-32 bg-[#e8eee9] dark:bg-emerald-950/30 overflow-hidden flex items-center justify-between p-4">
-              <span className="text-[10px] font-bold tracking-widest text-[#183b32] dark:text-emerald-400 uppercase z-10">
+          {/* 1. EMPLOYEE PROFILE CARD (With Portrait Avatar Matching Mockup) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 overflow-hidden shadow-xs relative">
+            {/* Header */}
+            <div className="p-5 pb-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 EMPLOYEE PROFILE
               </span>
-
               <button
                 type="button"
                 onClick={() => setShowProfileModal(true)}
-                className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-white z-10"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
-
-              {/* Crisp SVG Botanical Leaf Illustration */}
-              <svg
-                className="absolute right-0 top-0 h-full w-44 text-[#8ea894] dark:text-emerald-700/40 pointer-events-none"
-                viewBox="0 0 160 120"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M120,120 Q110,60 160,20" />
-                <path d="M120,120 Q140,80 160,60" />
-                <path d="M110,120 Q80,70 120,20 C130,40 140,60 110,120 Z" fill="rgba(142,168,148,0.2)" />
-                <path d="M90,120 Q50,75 80,30 C95,50 110,75 90,120 Z" fill="rgba(142,168,148,0.2)" />
-                <path d="M130,120 Q120,40 150,10 C160,30 165,55 130,120 Z" fill="rgba(142,168,148,0.15)" />
-              </svg>
             </div>
 
-            {/* Profile Avatar & Details */}
-            <div className="p-6 pt-0 relative space-y-4">
-              {/* Overlapping Pine Green Circle Avatar */}
-              <div className="-mt-12 mb-3">
-                <div className="w-20 h-20 rounded-full bg-[#183b32] border-4 border-white dark:border-slate-900 flex items-center justify-center text-white font-extrabold text-xl shadow-md">
-                  {userInitials}
-                </div>
+            {/* Subtle organic curved lines watermark */}
+            <svg
+              className="absolute right-0 top-0 w-44 h-44 text-slate-200/60 dark:text-white/5 pointer-events-none"
+              viewBox="0 0 100 100"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+            >
+              <path d="M0,80 Q50,20 100,60" />
+              <path d="M10,90 Q60,30 100,75" />
+              <path d="M20,100 Q70,40 100,90" />
+            </svg>
+
+            <div className="p-6 pt-2 flex flex-col items-center text-center space-y-4">
+              {/* Large Circular Photo Avatar */}
+              <div className="relative">
+                <img
+                  src={
+                    currentUser.avatarUrl ||
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'
+                  }
+                  alt={currentUser.name}
+                  className="w-28 h-28 rounded-full object-cover border-4 border-white dark:border-slate-800 shadow-md"
+                />
+                <span className="absolute bottom-0 -right-2 px-2.5 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-semibold border border-white/20">
+                  Sample profile
+                </span>
               </div>
 
-              {/* Name & Designation */}
-              <div className="space-y-1">
+              {/* Name & Title */}
+              <div>
                 <h3 className="text-2xl font-black text-[#111827] dark:text-white tracking-tight">
                   {currentUser.name}
                 </h3>
                 <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 block">
                   {currentUser.designation || 'Developer'}
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#183b32] dark:text-emerald-400 pt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-[#183b32] dark:bg-emerald-400" />
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 pt-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Active member
                 </span>
               </div>
 
               {/* Metadata List */}
-              <div className="space-y-2.5 pt-4 border-t border-slate-100 dark:border-white/5 text-xs">
+              <div className="w-full space-y-2.5 pt-3 border-t border-slate-100 dark:border-white/5 text-xs text-left">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-2">
                     <UserCheck className="w-3.5 h-3.5 text-slate-400" />
@@ -973,17 +1050,15 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 </div>
               </div>
 
-              {/* Full Width Dark Pine Green CTA Button */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProfileModal(true)}
-                  className="w-full py-3 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
-                >
-                  <span>View profile</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {/* Full-Width Dark Navy Button */}
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                className="w-full py-3 rounded-xl bg-[#1c3f6e] hover:bg-[#163359] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+              >
+                <span>View profile</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -1008,7 +1083,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
 
             {/* Soft Green Card Container */}
             <div className="p-4 rounded-2xl bg-[#eef5f1] dark:bg-emerald-950/30 border border-[#d6e5da] dark:border-emerald-900/30 flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-[#d6e8dc] dark:bg-emerald-900/50 text-[#183b32] dark:text-emerald-300 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[#d6e8dc] dark:bg-emerald-900/50 text-[#1c3f6e] dark:text-emerald-300 flex items-center justify-center shrink-0">
                 <Check className="w-5 h-5 stroke-[2.5]" />
               </div>
 
@@ -1041,7 +1116,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-[#183b32] dark:text-emerald-400" />
+                  <ShieldCheck className="w-5 h-5 text-[#1c3f6e] dark:text-sky-400" />
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
                     Company Punctuality &amp; Late Policy
                   </h3>
@@ -1088,7 +1163,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setShowPolicyModal(false)}
-                  className="px-5 py-2.5 rounded-xl bg-[#183b32] hover:bg-[#133028] text-white font-bold text-xs cursor-pointer shadow-xs"
+                  className="px-5 py-2.5 rounded-xl bg-[#1c3f6e] hover:bg-[#163359] text-white font-bold text-xs cursor-pointer shadow-xs"
                 >
                   Understood
                 </button>
@@ -1171,7 +1246,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setSelectedDayForInspector(null)}
-                  className="px-5 py-2.5 rounded-xl bg-[#183b32] text-white font-bold text-xs"
+                  className="px-5 py-2.5 rounded-xl bg-[#1c3f6e] text-white font-bold text-xs"
                 >
                   Close
                 </button>
@@ -1205,7 +1280,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
               </div>
 
               <div className="p-4 rounded-2xl bg-[#eef5f1] dark:bg-emerald-950/30 border border-[#d6e5da] dark:border-emerald-900/30 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#d6e8dc] text-[#183b32] flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#d6e8dc] text-[#1c3f6e] flex items-center justify-center shrink-0">
                   <Check className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div>
@@ -1222,7 +1297,7 @@ export function EmployeeDashboard({ onNavigate }: EmployeeDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setShowWarningsModal(false)}
-                  className="px-5 py-2.5 rounded-xl bg-[#183b32] text-white font-bold text-xs"
+                  className="px-5 py-2.5 rounded-xl bg-[#1c3f6e] text-white font-bold text-xs"
                 >
                   Close
                 </button>

@@ -194,14 +194,26 @@ export function Sidebar({
               type="button"
               onClick={() => setIsCollapsed(false)}
               title="Expand sidebar"
-              className="w-10 h-10 mx-auto rounded-[6px] bg-white dark:bg-white/95 border border-slate-200/90 dark:border-white/20 p-1 flex items-center justify-center shadow-xs group hover:scale-105 transition-all"
+              className="w-10 h-10 mx-auto rounded-[6px] bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/20 p-1 flex items-center justify-center shadow-xs group hover:scale-105 transition-all"
             >
-              <img src="/logo-emblem.png" alt="quickslogix" className="w-7 h-7 object-contain" />
+              <svg className="w-6 h-6 text-[#1c3f6e] dark:text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+              </svg>
             </button>
           ) : (
-            <div className="px-1 flex items-center justify-between">
-              <div className="bg-white dark:bg-white/95 px-2.5 py-1.5 rounded-[4px] border border-slate-200/80 dark:border-white/20 shadow-xs flex items-center w-full">
-                <img src="/logo.png" alt="quickslogix" className="h-7 w-auto object-contain" />
+            <div className="px-1 flex items-center gap-2.5 py-1">
+              <svg className="w-7 h-7 text-[#1c3f6e] dark:text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+              </svg>
+              <div>
+                <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white block leading-none">
+                  quickslogix
+                </span>
+                <span className="text-[8px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase block mt-1">
+                  BPO BRIGADE
+                </span>
               </div>
             </div>
           )}
@@ -315,7 +327,7 @@ export function Sidebar({
                   className={`relative w-full text-left px-3.5 py-2.5 rounded-xl transition-all flex items-center justify-between text-xs font-medium group ${
                     isActive
                       ? role === 'employee'
-                        ? 'bg-[#183b32] text-white font-semibold shadow-xs'
+                        ? 'bg-[#1c3f6e] text-white font-semibold shadow-xs'
                         : 'bg-slate-100 dark:bg-[#1a1f2e] text-slate-900 dark:text-white font-semibold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/[0.04]'
                   }`}
