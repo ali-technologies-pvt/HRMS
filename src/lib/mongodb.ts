@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 
 const uri = process.env.MONGODB_URI;
 const options = {};
@@ -27,6 +27,18 @@ if (process.env.MONGODB_URI) {
 } else {
   // Graceful fallback when running in local preview or before env vars are added
   clientPromise = null;
+}
+
+export async function getDatabase(): Promise<Db | null> {
+  if (!clientPromise) return null;
+  try {
+    const connectedClient = await clientPromise;
+    const dbName = process.env.MONGODB_DB || 'quickslogx_hrms';
+    return connectedClient.db(dbName);
+  } catch (err) {
+    console.warn('[MongoDB Atlas] Failed to connect to database:', err);
+    return null;
+  }
 }
 
 export default clientPromise;
