@@ -32,7 +32,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function LiveActivityTracker() {
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const { tasks, projects, attendance } = useAppData();
 
   // View Mode: 'table' or 'grid' (defaults to 'table' for maximum enterprise data density)
@@ -121,6 +121,44 @@ export function LiveActivityTracker() {
 
   return (
     <div className="space-y-6">
+      {/* Super Admin Welcome Hero Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-[20px] bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-6 text-white border border-slate-700/60 shadow-xl"
+      >
+        <div className="absolute -right-10 -top-10 h-56 w-56 rounded-full bg-blue-500/10 blur-2xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>quickslogx Executive OS</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-400">|</span>
+              <span className="text-amber-300 font-mono font-bold uppercase tracking-wider">Super Administrator</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Welcome back, {currentUser?.name || 'Administrator'}! 👑
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Global workforce surveillance, company setup governance, broadcast telemetry, and live cross-department sprint metrics.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-md shrink-0">
+            <div className="text-right">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Company Telemetry</span>
+              <span className="text-base font-bold text-white font-mono">{onlineCount} Active Today</span>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-400/30">
+              <Activity className="w-5 h-5 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Top Banner / Metrics Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <LiquidGlassCard glow="cyan" interactive className="p-4">

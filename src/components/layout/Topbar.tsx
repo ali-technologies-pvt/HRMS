@@ -124,7 +124,7 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
             </span>
           </div>
 
-          {/* 1-Click Shift Punch In / Out Quick Pill */}
+          {/* 1-Click Shift Punch In / Out Quick Pill (Prominent) */}
           {currentUser && currentUser.role !== 'super_admin' && (
             <div className="flex items-center">
               {!todayRecord?.clockIn ? (
@@ -132,26 +132,26 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
                   type="button"
                   onClick={() => clockIn(currentUser.id)}
                   title="Instant 1-Click Shift Check-In"
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 rounded-[3px] text-xs font-mono font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-[4px] text-xs font-mono font-black transition-all shadow-[0_4px_12px_rgba(16,185,129,0.35)] active:scale-95 cursor-pointer border border-emerald-400/40"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Check-In</span>
+                  <LogIn className="w-3.5 h-3.5 text-white" />
+                  <span>Punch In</span>
                 </button>
               ) : !todayRecord?.clockOut ? (
                 <button
                   type="button"
                   onClick={() => clockOut(currentUser.id)}
                   title={`Clocked in at ${todayRecord.clockIn}. Click to Punch Out.`}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-700 dark:text-rose-300 rounded-[3px] text-xs font-mono font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white rounded-[4px] text-xs font-mono font-black transition-all shadow-[0_4px_12px_rgba(244,63,94,0.35)] active:scale-95 cursor-pointer border border-rose-400/40"
                 >
-                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                  <LogOut className="w-3.5 h-3.5 text-white" />
                   <span className="hidden sm:inline">Punch Out ({todayRecord.clockIn})</span>
                   <span className="sm:hidden">Punch Out</span>
                 </button>
               ) : (
-                <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-slate-500/10 border border-slate-500/20 text-slate-600 dark:text-slate-400 rounded-[3px] text-xs font-mono font-semibold">
+                <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 rounded-[4px] text-xs font-mono font-bold">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Shift Closed ({todayRecord.clockOut})</span>
+                  <span>Shift Done ({todayRecord.clockOut})</span>
                 </div>
               )}
             </div>

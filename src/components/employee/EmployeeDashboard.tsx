@@ -124,7 +124,8 @@ export function EmployeeDashboard() {
     getUserTodayAttendance,
     updateTaskStatus,
     updateTask,
-    announcements
+    announcements,
+    policy
   } = useAppData();
   const { showNotification } = useNotifications();
 
@@ -392,93 +393,147 @@ export function EmployeeDashboard() {
       {/* ======================================================== */}
       {/* 1. TOP GREETING HERO BANNER & STATS (Reference UI Style)  */}
       {/* ======================================================== */}
+      {/* ======================================================== */}
+      {/* 1. TOP WELCOME GREETING HERO BANNER                       */}
+      {/* ======================================================== */}
       <motion.div
         variants={itemVariants}
-        className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 p-7 text-white shadow-xl shadow-indigo-600/15"
+        className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 p-6 sm:p-7 text-white shadow-xl shadow-indigo-600/15"
       >
         {/* Subtle decorative glow circles */}
         <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-white/10 blur-2xl pointer-events-none" />
         <div className="absolute -bottom-8 right-48 h-48 w-48 rounded-full bg-cyan-400/15 blur-xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-xs font-semibold tracking-wide">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>quickslogx Employee Workspace</span>
+              <span>quickslogx Workforce Terminal</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-blue-200">|</span>
+              <span className="text-white font-mono font-bold uppercase tracking-wider">{currentUser.role}</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white drop-shadow-sm">
               {greeting}, {currentUser.name}! 👋
             </h1>
 
-            <p className="text-sm text-blue-100 leading-relaxed">
-              {isClockedIn ? (
-                <span>
-                  You are actively on duty in shift. You have <strong className="text-white font-bold">{taskKpis.inProgress + myAssignedTasks.filter(t => t.status === 'pending').length}</strong> open tasks pending your review.
-                </span>
-              ) : isShiftCompleted ? (
-                <span>
-                  Your shift is completed for today. Great job! Total logged: <strong className="text-white font-bold">{todayRecord?.totalWorkMinutes ? Math.round(todayRecord.totalWorkMinutes / 60 * 10) / 10 : 0} hrs</strong>.
-                </span>
-              ) : (
-                <span>
-                  Ready to begin today&apos;s shift? Clock in now to track attendance, start assigned workstreams, and coordinate with your manager.
-                </span>
-              )}
+            <p className="text-sm text-blue-100 leading-relaxed max-w-xl">
+              Welcome to your personal productivity dashboard. Track your shift attendance in real-time, execute assigned deliverables, and submit daily EOD reports.
             </p>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              {!isClockedIn && !isShiftCompleted && (
-                <button
-                  type="button"
-                  onClick={handleClockIn}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs shadow-lg shadow-black/10 transition-all hover:scale-105 active:scale-95"
-                >
-                  <LogIn className="w-4 h-4 text-blue-600" />
-                  <span>Punch In for Shift</span>
-                </button>
+          {/* Quick Date & Day Badge */}
+          <div className="flex md:flex-col items-start md:items-end justify-between gap-2 shrink-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4">
+            <span className="text-xs font-mono uppercase text-blue-200 font-semibold tracking-wider">Today&apos;s Date</span>
+            <div className="text-lg sm:text-xl font-bold font-mono text-white">
+              {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+            <div className="text-[11px] text-blue-200 flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-cyan-300" />
+              <span>Shift: {policy?.officeStartTime || '09:30'} - {policy?.officeEndTime || '18:00'}</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ======================================================== */}
+      {/* 2. PROMINENT SHIFT CHECK-IN / CHECK-OUT COMMAND TERMINAL  */}
+      {/* ======================================================== */}
+      <motion.div
+        variants={itemVariants}
+        className={`relative overflow-hidden rounded-[22px] p-5 sm:p-6 transition-all duration-300 border-2 shadow-xl ${
+          isClockedIn
+            ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border-emerald-500/60 shadow-emerald-500/15'
+            : isShiftCompleted
+            ? 'bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-blue-500/40 shadow-blue-500/10'
+            : 'bg-gradient-to-r from-amber-950/80 via-slate-900 to-orange-950/80 border-amber-500/60 shadow-amber-500/15'
+        }`}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {/* Status info & Live clock */}
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+              isClockedIn
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 animate-pulse'
+                : isShiftCompleted
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-400/40'
+                : 'bg-amber-500/20 text-amber-400 border border-amber-400/40'
+            }`}>
+              {isClockedIn ? (
+                <Clock className="w-8 h-8 text-emerald-400" />
+              ) : isShiftCompleted ? (
+                <CheckCircle2 className="w-8 h-8 text-blue-400" />
+              ) : (
+                <LogIn className="w-8 h-8 text-amber-400" />
               )}
+            </div>
 
-              {isClockedIn && (
-                <button
-                  type="button"
-                  onClick={handleClockOut}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-900/20 transition-all hover:scale-105 active:scale-95"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Punch Out (End Shift)</span>
-                </button>
-              )}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-mono font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${
+                  isClockedIn
+                    ? 'bg-emerald-500 text-slate-950 font-extrabold'
+                    : isShiftCompleted
+                    ? 'bg-blue-500 text-white font-extrabold'
+                    : 'bg-amber-500 text-slate-950 font-extrabold'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${isClockedIn ? 'bg-slate-950 animate-ping' : 'bg-slate-950'}`} />
+                  {isClockedIn ? 'SHIFT ACTIVE • ON DUTY' : isShiftCompleted ? 'SHIFT CONCLUDED' : 'SHIFT PENDING • NOT CHECKED IN'}
+                </span>
 
-              <button
-                type="button"
-                onClick={() => setShowEODModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white font-semibold text-xs backdrop-blur-md transition-all active:scale-95"
-              >
-                <FileCheck2 className="w-4 h-4" />
-                <span>Submit Daily EOD Report</span>
-              </button>
+                <span className="text-xs font-mono text-slate-400">
+                  Grace Limit: {policy?.gracePeriodMinutes || 15} mins
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-baseline gap-3 pt-0.5">
+                <span className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono text-white tracking-tight">
+                  {isClockedIn ? formattedShiftDuration : currentTimeStr || '00:00:00'}
+                </span>
+                <span className="text-xs sm:text-sm text-slate-300 font-medium">
+                  {isClockedIn
+                    ? `Punched in at ${todayRecord?.clockIn} ${todayRecord?.isLate ? '(Late Arrival)' : '(On-Time)'}`
+                    : isShiftCompleted
+                    ? `Punched Out at ${todayRecord?.clockOut} (Total: ${todayRecord?.totalWorkMinutes ? Math.floor(todayRecord.totalWorkMinutes / 60) : 0}h ${todayRecord?.totalWorkMinutes ? todayRecord.totalWorkMinutes % 60 : 0}m)`
+                    : 'Click button below to start tracking shift'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Right Live Shift Timer Widget */}
-          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 md:p-5 shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner">
-              <Clock className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-blue-200 font-semibold">
-                {isClockedIn ? 'Live Shift Elapsed' : isShiftCompleted ? 'Shift Concluded' : 'Digital Clock'}
-              </div>
-              <div className="text-2xl font-black font-mono tracking-tight text-white">
-                {isClockedIn ? formattedShiftDuration : currentTimeStr || '09:00:00'}
-              </div>
-              <div className="text-[11px] text-blue-200 flex items-center gap-1.5 mt-0.5">
-                <span className={`w-2 h-2 rounded-full ${isClockedIn ? 'bg-emerald-400' : isShiftCompleted ? 'bg-blue-300' : 'bg-amber-400'}`} />
-                <span>{isClockedIn ? `Started at ${todayRecord?.clockIn}` : isShiftCompleted ? 'Shift Finished' : 'Not Punched In Yet'}</span>
-              </div>
-            </div>
+          {/* Large, Prominent Check In / Check Out Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            {!isClockedIn && !isShiftCompleted && (
+              <button
+                type="button"
+                onClick={handleClockIn}
+                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-sm sm:text-base tracking-wide shadow-[0_8px_30px_rgba(16,185,129,0.5)] hover:shadow-[0_12px_36px_rgba(16,185,129,0.65)] flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer border border-emerald-300/40"
+              >
+                <LogIn className="w-5 h-5 text-white" />
+                <span>PUNCH IN / CHECK IN (START SHIFT)</span>
+              </button>
+            )}
+
+            {isClockedIn && (
+              <button
+                type="button"
+                onClick={handleClockOut}
+                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-black text-sm sm:text-base tracking-wide shadow-[0_8px_30px_rgba(244,63,94,0.5)] hover:shadow-[0_12px_36px_rgba(244,63,94,0.65)] flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer border border-rose-300/40"
+              >
+                <LogOut className="w-5 h-5 text-white" />
+                <span>PUNCH OUT / CHECK OUT (END SHIFT)</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowEODModal(true)}
+              className="w-full sm:w-auto px-5 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs sm:text-sm tracking-wide transition-all backdrop-blur-md flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+            >
+              <FileCheck2 className="w-4 h-4 text-cyan-300" />
+              <span>Submit EOD Report</span>
+            </button>
           </div>
         </div>
       </motion.div>

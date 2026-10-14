@@ -37,7 +37,9 @@ import {
   Copy,
   RefreshCw,
   Zap,
-  Trash2
+  Trash2,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AttendanceRecord, Project, RequestItem } from '@/types';
@@ -194,6 +196,8 @@ export function ManagerDashboard() {
     attendance,
     policy,
     getUserTodayAttendance,
+    clockIn,
+    clockOut,
     updateCompanyPolicy,
     addProject,
     updateProject,
@@ -221,6 +225,7 @@ export function ManagerDashboard() {
   const [endTime, setEndTime] = useState(policy.officeEndTime || '18:00');
   const [gracePeriod, setGracePeriod] = useState(policy.gracePeriodMinutes || 15);
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+  const myTodayRecord = currentUser ? getUserTodayAttendance(currentUser.id) : null;
 
   // Quick Backfill & Manual Add Modals
   const [showBackfillModal, setShowBackfillModal] = useState(false);
@@ -713,6 +718,36 @@ export function ManagerDashboard() {
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Manager Shift Check In / Out */}
+            {currentUser && (
+              <div className="mr-2">
+                {!myTodayRecord?.clockIn ? (
+                  <button
+                    type="button"
+                    onClick={() => clockIn(currentUser.id)}
+                    className="px-4 py-2 rounded-[3px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer border border-emerald-400/30"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Check In (Start Shift)</span>
+                  </button>
+                ) : !myTodayRecord?.clockOut ? (
+                  <button
+                    type="button"
+                    onClick={() => clockOut(currentUser.id)}
+                    className="px-4 py-2 rounded-[3px] bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 shadow-md shadow-rose-500/20 transition-all active:scale-95 cursor-pointer border border-rose-400/30"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Punch Out ({myTodayRecord.clockIn})</span>
+                  </button>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-[3px] bg-emerald-500/10 border border-emerald-400/30 text-emerald-700 dark:text-emerald-300 font-mono text-xs font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Shift Concluded ({myTodayRecord.clockOut})</span>
+                  </span>
+                )}
+              </div>
+            )}
+
             <LiquidButton
               variant="primary"
               size="md"

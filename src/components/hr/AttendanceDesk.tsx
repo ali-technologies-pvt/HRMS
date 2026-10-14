@@ -24,7 +24,10 @@ import {
   Filter,
   ShieldAlert,
   Info,
-  Building2
+  Building2,
+  LogIn,
+  LogOut,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,7 +39,10 @@ export function AttendanceDesk() {
     manualRecordAttendance,
     bulkBackfillAttendance,
     deleteAttendanceRecord,
-    updateCompanyPolicy
+    updateCompanyPolicy,
+    getUserTodayAttendance,
+    clockIn,
+    clockOut
   } = useAppData();
   const { showNotification } = useNotifications();
 
@@ -230,8 +236,72 @@ export function AttendanceDesk() {
     };
   }, [formClockIn, policy]);
 
+  const todayRecord = currentUser ? getUserTodayAttendance(currentUser.id) : null;
+
   return (
     <div className="space-y-6">
+      {/* HR Welcome Hero Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-[20px] bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-900 p-6 text-white border border-sky-500/30 shadow-xl"
+      >
+        <div className="absolute -right-10 -top-10 h-56 w-56 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>quickslogx People & Operations</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-400">|</span>
+              <span className="text-cyan-300 font-mono font-bold uppercase tracking-wider">Human Resources</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Welcome back, {currentUser?.name || 'HR Team'}! 👥
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Real-time attendance audits, shift grace policy configuration, manual 5-day backfill desk, and monthly payroll validation.
+            </p>
+          </div>
+
+          {/* HR's Own Shift Check In / Check Out Quick Pill */}
+          {currentUser && (
+            <div className="flex items-center gap-3 bg-white/10 border border-white/15 rounded-xl p-3.5 backdrop-blur-md shrink-0">
+              <div className="text-right">
+                <span className="text-[10px] font-mono text-cyan-200 uppercase tracking-wider block">Your Daily Shift</span>
+                <span className="text-xs font-bold text-white font-mono">
+                  {todayRecord?.clockIn ? `Active (${todayRecord.clockIn})` : 'Not Punched In'}
+                </span>
+              </div>
+              {!todayRecord?.clockIn ? (
+                <button
+                  type="button"
+                  onClick={() => clockIn(currentUser.id)}
+                  className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Check In</span>
+                </button>
+              ) : !todayRecord?.clockOut ? (
+                <button
+                  type="button"
+                  onClick={() => clockOut(currentUser.id)}
+                  className="px-3.5 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Punch Out</span>
+                </button>
+              ) : (
+                <span className="px-2.5 py-1 rounded bg-slate-800 text-emerald-400 text-xs font-mono font-bold">
+                  Shift Done
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.div>
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
