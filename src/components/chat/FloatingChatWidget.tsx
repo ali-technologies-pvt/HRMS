@@ -30,7 +30,8 @@ import {
   Video,
   MoreVertical,
   Check as SingleCheck,
-  Bell
+  Bell,
+  Loader2
 } from 'lucide-react';
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '👏', '😊', '🚀', '✅', '🙏'];
@@ -78,8 +79,13 @@ export function FloatingChatWidget() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
 
-  // Image Upload State
-  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
+  // Image Upload State (Google Drive 5TB integration)
+  const [selectedImage, setSelectedImage] = useState<{
+    localPreview: string;
+    driveUrl?: string;
+    filename: string;
+  } | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,8 +123,12 @@ export function FloatingChatWidget() {
   // Ultra-fluent message dispatch
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isUploadingImage) {
+      showNotification('Please Wait', 'Image is uploading to Google Drive 5TB...', 'info');
+      return;
+    }
     const textToSend = messageText.trim();
-    const imageToSend = selectedImageBase64;
+    const imageToSend = selectedImage?.driveUrl;
 
     if (!textToSend && !imageToSend) return;
     const targetGroupId = activeGroupId || groups[0]?.id;
@@ -126,7 +136,7 @@ export function FloatingChatWidget() {
 
     // Immediately clear input for 0ms lag WhatsApp feel
     setMessageText('');
-    setSelectedImageBase64(null);
+    setSelectedImage(null);
     setShowEmojiBar(false);
 
     // Dispatch atomically
@@ -142,8 +152,8 @@ export function FloatingChatWidget() {
     }
   };
 
-  // Handle Image File Select
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Image File Select & Direct Upload to Google Drive 5TB
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -152,21 +162,47 @@ export function FloatingChatWidget() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification('File Too Large', 'Please select an image under 5MB.', 'warning');
+    if (file.size > 20 * 1024 * 1024) {
+      showNotification('File Too Large', 'Please select an image under 20MB.', 'warning');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setSelectedImageBase64(reader.result);
-        showNotification('Image Attached', 'Ready to send.', 'info');
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedImage({
+      localPreview: previewUrl,
+      filename: file.name
+    });
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        setSelectedImage({
+          localPreview: previewUrl,
+          driveUrl: data.url,
+          filename: file.name
+        });
+        showNotification('Google Drive 5TB', 'Image uploaded to Google Drive!', 'info');
         inputRef.current?.focus();
+      } else {
+        showNotification('Upload Failed', data.error || 'Failed to upload to Google Drive', 'warning');
+        setSelectedImage(null);
       }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    } catch (err: any) {
+      showNotification('Upload Error', err?.message || 'Network error while uploading', 'warning');
+      setSelectedImage(null);
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = '';
+    }
   };
 
   // Start Direct Chat with Employee
@@ -756,27 +792,38 @@ export function FloatingChatWidget() {
                   </div>
                 )}
 
-                {/* Image Attachment Preview Ribbon */}
-                {selectedImageBase64 && (
+                {/* Image Attachment Preview Ribbon (Google Drive 5TB) */}
+                {selectedImage && (
                   <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border-t border-emerald-300 dark:border-emerald-700/40 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
                       <img
-                        src={selectedImageBase64}
+                        src={selectedImage.localPreview}
                         alt="Preview"
                         className="w-9 h-9 rounded-lg object-cover border border-emerald-500"
                       />
-                      <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
-                        1 photo ready to send
-                      </span>
+                      <div>
+                        <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 block">
+                          {isUploadingImage ? 'Uploading to Drive 5TB...' : 'Ready to send (5TB Drive)'}
+                        </span>
+                        <span className="text-[9px] text-slate-500 dark:text-slate-400 truncate max-w-[150px] block">
+                          {selectedImage.filename}
+                        </span>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedImageBase64(null)}
-                      className="p-1 text-slate-400 hover:text-rose-500"
-                      title="Remove"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {isUploadingImage && (
+                        <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin" />
+                      )}
+                      <button
+                        type="button"
+                        disabled={isUploadingImage}
+                        onClick={() => setSelectedImage(null)}
+                        className="p-1 text-slate-400 hover:text-rose-500 disabled:opacity-30"
+                        title="Remove"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -816,10 +863,9 @@ export function FloatingChatWidget() {
                     className="flex-1 bg-slate-100 dark:bg-white/[0.06] border border-transparent focus:border-emerald-500 rounded-full px-4 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none transition-all"
                   />
 
-                  {/* Send Button */}
                   <button
                     type="submit"
-                    disabled={!messageText.trim() && !selectedImageBase64}
+                    disabled={(!messageText.trim() && !selectedImage?.driveUrl) || isUploadingImage}
                     className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40 transition-all shadow-sm shrink-0"
                     title="Send message"
                   >

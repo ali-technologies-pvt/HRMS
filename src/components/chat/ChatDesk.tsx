@@ -32,7 +32,9 @@ import {
   ImageIcon,
   Edit2,
   Trash2,
-  User
+  User,
+  Paperclip,
+  Loader2
 } from 'lucide-react';
 
 export function ChatDesk() {
@@ -73,6 +75,15 @@ export function ChatDesk() {
   // Add Member Form State
   const [memberEmailToAdd, setMemberEmailToAdd] = useState('');
 
+  // Image Upload State (Google Drive 5TB integration)
+  const [selectedImage, setSelectedImage] = useState<{
+    localPreview: string;
+    driveUrl?: string;
+    filename: string;
+  } | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isManagerOrAdmin =
@@ -96,9 +107,69 @@ export function ChatDesk() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeGroupId || !messageText.trim()) return;
-    sendMessage(activeGroupId, messageText.trim());
+    if (isUploadingImage) {
+      showNotification('Please Wait', 'Image is uploading to Google Drive 5TB...', 'info');
+      return;
+    }
+    const textToSend = messageText.trim();
+    const imageToSend = selectedImage?.driveUrl;
+
+    if (!activeGroupId || (!textToSend && !imageToSend)) return;
+
+    sendMessage(activeGroupId, textToSend, imageToSend || undefined);
     setMessageText('');
+    setSelectedImage(null);
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('Invalid File', 'Please select an image file (PNG, JPG, WebP).', 'warning');
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      showNotification('File Too Large', 'Please select an image under 20MB.', 'warning');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedImage({
+      localPreview: previewUrl,
+      filename: file.name
+    });
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        setSelectedImage({
+          localPreview: previewUrl,
+          driveUrl: data.url,
+          filename: file.name
+        });
+        showNotification('Google Drive 5TB', 'Image uploaded to Google Drive!', 'info');
+      } else {
+        showNotification('Upload Failed', data.error || 'Failed to upload to Google Drive', 'warning');
+        setSelectedImage(null);
+      }
+    } catch (err: any) {
+      showNotification('Upload Error', err?.message || 'Network error while uploading', 'warning');
+      setSelectedImage(null);
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = '';
+    }
   };
 
   const handleCreateGroupSubmit = (e: React.FormEvent) => {
@@ -526,9 +597,61 @@ export function ChatDesk() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Image Attachment Preview Ribbon (Google Drive 5TB) */}
+              {selectedImage && (
+                <div className="px-4 py-2 bg-sky-50 dark:bg-sky-950/40 border-t border-sky-300 dark:border-sky-700/40 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={selectedImage.localPreview}
+                      alt="Preview"
+                      className="w-10 h-10 rounded-[2px] object-cover border border-sky-500"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-sky-800 dark:text-sky-300 block">
+                        {isUploadingImage ? 'Uploading to Google Drive 5TB...' : 'Ready to send (5TB Drive)'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-xs block font-mono">
+                        {selectedImage.filename}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isUploadingImage && (
+                      <Loader2 className="w-4 h-4 text-sky-600 dark:text-cyan-400 animate-spin" />
+                    )}
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => setSelectedImage(null)}
+                      className="p-1 text-slate-400 hover:text-rose-500 disabled:opacity-30 transition-colors"
+                      title="Remove"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Message Input Bar */}
               <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-950/40">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                  className="hidden"
+                />
+
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach Photo from Device"
+                    className="p-2 text-slate-500 hover:text-sky-600 dark:hover:text-cyan-400 rounded-[2px] hover:bg-slate-200/60 dark:hover:bg-white/[0.06] transition-colors shrink-0"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+
                   <input
                     type="text"
                     value={messageText}
@@ -540,8 +663,8 @@ export function ChatDesk() {
                   <motion.button
                     whileTap={{ scale: 0.94 }}
                     type="submit"
-                    disabled={!messageText.trim()}
-                    className="py-2.5 px-4 rounded-[2px] bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                    disabled={(!messageText.trim() && !selectedImage?.driveUrl) || isUploadingImage}
+                    className="py-2.5 px-4 rounded-[2px] bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all shrink-0"
                   >
                     <span>Send</span>
                     <Send className="w-3.5 h-3.5" />

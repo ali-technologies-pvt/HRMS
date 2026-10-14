@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { LiquidButton } from './LiquidButton';
-import { X, User, Camera, KeyRound, ShieldCheck, Mail, Phone, Building2, Briefcase, FileText, Check, Upload, Sparkles } from 'lucide-react';
+import { X, User, Camera, KeyRound, ShieldCheck, Mail, Phone, Building2, Briefcase, FileText, Check, Upload, Sparkles, Loader2 } from 'lucide-react';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -35,6 +35,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const [department, setDepartment] = useState(currentUser.department);
   const [designation, setDesignation] = useState(currentUser.designation);
   const [uploadSuccessNotice, setUploadSuccessNotice] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Sync state whenever modal is opened or currentUser updates
   useEffect(() => {
@@ -92,7 +93,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
     }
   };
 
-  const handleCustomImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -101,40 +102,38 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_DIM = 400;
-        let width = img.width;
-        let height = img.height;
+    if (file.size > 20 * 1024 * 1024) {
+      alert('Please upload an image smaller than 20MB.');
+      return;
+    }
 
-        if (width > height) {
-          if (width > MAX_DIM) {
-            height *= MAX_DIM / width;
-            width = MAX_DIM;
-          }
-        } else {
-          if (height > MAX_DIM) {
-            width *= MAX_DIM / height;
-            height = MAX_DIM;
-          }
-        }
+    try {
+      setIsUploadingAvatar(true);
+      setUploadSuccessNotice(`Uploading "${file.name}" to Google Drive 5TB...`);
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setAvatarUrl(compressedDataUrl);
-          setUploadSuccessNotice(`Photo "${file.name}" loaded successfully! Click "Save Profile Changes" below to apply.`);
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        setAvatarUrl(data.url);
+        setUploadSuccessNotice(`Photo "${file.name}" saved to Google Drive 5TB! Click "Save Profile Changes" below to apply.`);
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'));
+        setUploadSuccessNotice(null);
+      }
+    } catch (err: any) {
+      alert('Error uploading to Google Drive: ' + err.message);
+      setUploadSuccessNotice(null);
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = '';
+    }
   };
 
   return (
@@ -213,14 +212,21 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                   </label>
                   <label
                     htmlFor="avatar-upload-direct"
-                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition-all"
+                    className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition-all ${
+                      isUploadingAvatar ? 'opacity-60 pointer-events-none' : ''
+                    }`}
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo from Device</span>
+                    {isUploadingAvatar ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isUploadingAvatar ? 'Uploading to Drive 5TB...' : 'Upload Photo from Device'}</span>
                     <input
                       id="avatar-upload-direct"
                       type="file"
                       accept="image/*"
+                      disabled={isUploadingAvatar}
                       onChange={handleCustomImageUpload}
                       className="hidden"
                     />
@@ -393,8 +399,8 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                 <LiquidButton type="button" variant="ghost" onClick={onClose}>
                   Cancel
                 </LiquidButton>
-                <LiquidButton type="submit" variant="primary">
-                  Save Profile Changes
+                <LiquidButton type="submit" variant="primary" disabled={isUploadingAvatar}>
+                  {isUploadingAvatar ? 'Uploading Image...' : 'Save Profile Changes'}
                 </LiquidButton>
               </div>
             </form>
