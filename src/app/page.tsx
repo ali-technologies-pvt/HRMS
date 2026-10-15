@@ -1,13 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { SuperAdminWorkspace } from '@/components/superadmin/SuperAdminWorkspace';
+import { RoleWorkspaceShell } from '@/components/common/RoleWorkspaceShell';
+import { WorkspaceOverview } from '@/components/common/WorkspaceOverview';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { AppDataProvider } from '@/context/AppDataContext';
 import { AmbientBackground } from '@/components/common/AmbientBackground';
 import { Topbar } from '@/components/layout/Topbar';
-import { Sidebar, PortalView } from '@/components/layout/Sidebar';
+import { PortalView } from '@/components/layout/Sidebar';
 import { ForcePasswordModal } from '@/components/common/ForcePasswordModal';
 import { DailyAttendancePopup } from '@/components/common/DailyAttendancePopup';
 
@@ -47,33 +50,39 @@ import { FloatingChatWidget } from '@/components/chat/FloatingChatWidget';
 
 function HRMSPortalContent() {
   const { currentUser, isAuthenticated } = useAuth();
+  const [loginTransition, setLoginTransition] = useState(false);
   const [currentView, setCurrentView] = useState<PortalView>('admin_overview');
   const [unifiedTab, setUnifiedTab] = useState<'manager' | 'hr'>('manager');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showOperations, setShowOperations] = useState(false);
+  const isDashboard = ['admin_overview', 'manager_dashboard', 'emp_dashboard', 'hr_attendance'].includes(currentView);
+
+  const currentRole = currentUser?.role;
 
   // Dynamically update view when role switches
   useEffect(() => {
-    if (!currentUser) return;
-    if (currentUser.role === 'super_admin') {
+    if (!currentRole) return;
+    if (currentRole === 'super_admin') {
       setCurrentView('admin_overview');
-    } else if (currentUser.role === 'manager') {
+    } else if (currentRole === 'manager') {
       setUnifiedTab('manager');
       setCurrentView('manager_dashboard');
-    } else if (currentUser.role === 'hr') {
+    } else if (currentRole === 'hr') {
       setUnifiedTab('hr');
       setCurrentView('hr_attendance');
-    } else if (currentUser.role === 'manager_hr') {
+    } else if (currentRole === 'manager_hr') {
       setUnifiedTab('manager');
       setCurrentView('manager_dashboard');
-    } else if (currentUser.role === 'employee') {
+    } else if (currentRole === 'employee') {
       setCurrentView('emp_dashboard');
     }
-  }, [currentUser?.role]);
+  }, [currentRole]);
 
   // If unauthenticated or no current user, enforce LoginPage
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
+  if (!isAuthenticated || !currentUser || loginTransition) {
+    return <LoginPage onTransitionStart={() => setLoginTransition(true)} onTransitionEnd={() => setLoginTransition(false)} />;
   }
+
+  if (currentUser.role === 'super_admin') return <SuperAdminWorkspace />;
 
   // Render the appropriate portal view
   const renderView = () => {
@@ -90,7 +99,7 @@ function HRMSPortalContent() {
 
       // Manager Views
       case 'manager_dashboard':
-        return <ManagerDashboard />;
+        return unifiedTab === 'hr' ? <AttendanceDesk compactHeader /> : <ManagerDashboard />;
       case 'manager_tasks':
         return <TaskAllocationDesk />;
       case 'manager_team_monitor':
@@ -134,47 +143,17 @@ function HRMSPortalContent() {
   };
 
   return (
-    <div className="relative min-h-screen text-slate-800 dark:text-slate-100 flex flex-col bg-[#f4f6fb] dark:bg-[#080a11] selection:bg-sky-500/20 selection:text-slate-900 dark:selection:text-white transition-colors duration-300">
-      {/* Dynamic Apple-style Liquid Mesh Ambient Glow */}
-      <AmbientBackground />
-
-      {/* Floating Crystal Topbar (Only for Admins/Managers/HR; Employee uses dedicated workspace header) */}
-      {currentUser.role !== 'employee' && (
-        <Topbar
-          onOpenChat={() => setCurrentView('team_chat')}
-          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-          isMobileMenuOpen={mobileMenuOpen}
-        />
-      )}
-
-      {/* Main Body with Sidebar & Content */}
-      <div className="flex-1 flex relative z-10 w-full min-w-0">
-        <Sidebar
-          currentView={currentView}
-          onSelectView={(view) => {
-            setCurrentView(view);
-            setMobileMenuOpen(false);
-          }}
-          unifiedWorkspaceTab={unifiedTab}
-          onSelectUnifiedTab={setUnifiedTab}
-          mobileOpen={mobileMenuOpen}
-          onCloseMobile={() => setMobileMenuOpen(false)}
-        />
-
-        <main className="flex-1 p-3 sm:p-5 lg:p-7 max-w-7xl mx-auto w-full min-w-0 overflow-y-auto">
-          {renderView()}
-        </main>
-      </div>
-
+    <RoleWorkspaceShell view={currentView} onNavigate={(view)=>{setCurrentView(view);setShowOperations(false);}} workspace={unifiedTab} onWorkspace={setUnifiedTab}>
+      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={setCurrentView} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : currentUser.role === 'employee' ? 'Open my day · shift & daily report' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
       {/* First-Login Mandatory Change Password Modal */}
       <ForcePasswordModal />
 
       {/* First-Login Daily Attendance Prompt Popup */}
-      <DailyAttendancePopup />
+      <div className="at-live-desk"><DailyAttendancePopup /></div>
 
       {/* Global Real-Time Floating Live Chat Widget */}
-      <FloatingChatWidget />
-    </div>
+      <div className="at-live-chat"><FloatingChatWidget /></div>
+    </RoleWorkspaceShell>
   );
 }
 

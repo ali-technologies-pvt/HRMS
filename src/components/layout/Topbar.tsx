@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useAppData } from '@/context/AppDataContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useTheme } from '@/context/ThemeContext';
-import { ProfileEditModal } from '../common/ProfileEditModal';
+import { PremiumProfileModal as ProfileEditModal } from '../common/PremiumProfileModal';
 import { ExitClearanceModal } from '../common/ExitClearanceModal';
 import { Bell, Clock, Volume2, VolumeX, CheckCheck, Trash2, Sun, Moon, Sparkles, LogOut, MessageSquare, Menu, X as CloseIcon, LogIn, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,6 +28,7 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
   const [currentTime, setCurrentTime] = useState<string>('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const closeProfile = useCallback(() => setShowProfileModal(false), []);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showExitClearanceModal, setShowExitClearanceModal] = useState(false);
 
@@ -408,7 +409,7 @@ export function Topbar({ onOpenChat, onToggleMobileMenu, isMobileMenuOpen }: Top
       {/* Profile & Password Customization Modal */}
       <ProfileEditModal
         isOpen={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
+        onClose={closeProfile}
       />
 
       {/* Mandatory Exit Clearance Modal */}

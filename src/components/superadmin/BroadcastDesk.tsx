@@ -82,7 +82,7 @@ export function BroadcastDesk() {
             Company-Wide Dispatch & Real-Time Broadcasts
           </span>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide">
-            Announcements & Operational Circulars
+            Announcements & broadcasts
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Push instant notices, holiday alerts, and departmental directives across all employee workstations in real time.
@@ -188,7 +188,7 @@ export function BroadcastDesk() {
                   icon={editingId ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
                   className="flex-1 justify-center"
                 >
-                  {editingId ? 'Save Changes' : 'Publish Real-Time Notice'}
+                  {editingId ? 'Save Changes' : 'Publish announcement'}
                 </LiquidButton>
                 {editingId && (
                   <button

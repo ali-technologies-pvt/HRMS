@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function AttendanceDesk() {
+export function AttendanceDesk({ compactHeader = false }: { compactHeader?: boolean }) {
   const { currentUser, users } = useAuth();
   const {
     attendance,
@@ -240,7 +240,7 @@ export function AttendanceDesk() {
 
   return (
     <div className="space-y-6">
-      {/* HR Welcome Hero Banner */}
+      {!compactHeader && <>{/* HR Welcome Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -302,7 +302,7 @@ export function AttendanceDesk() {
           )}
         </div>
       </motion.div>
-      {/* Top Header */}
+      </>}{/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">

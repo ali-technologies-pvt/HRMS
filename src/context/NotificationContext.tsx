@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { NotificationItem } from '@/types';
 import { playGlassChime } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,7 +23,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     {
       id: 'notif-welcome',
       title: 'Welcome to quickslogx HRMS',
-      message: 'Liquid Glassmorphic OS is initialized and edge-ready.',
+      message: 'Your workspace is ready. Find important updates and actions in your notification inbox.',
       type: 'info',
       timestamp: new Date().toISOString(),
       read: false
@@ -31,6 +31,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   ]);
   const [activeToasts, setActiveToasts] = useState<NotificationItem[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const [preferencesLoaded,setPreferencesLoaded]=useState(false);
+  useEffect(()=>{
+    try{
+      const sound=localStorage.getItem('quickslogx_notification_sound');if(sound!==null)setSoundEnabled(sound==='true');
+    }catch{ /* Keep the current inbox when saved preferences are unavailable. */ }
+    setPreferencesLoaded(true);
+  },[]);
+  useEffect(()=>{if(!preferencesLoaded)return;try{localStorage.setItem('quickslogx_notification_sound',String(soundEnabled));}catch{ /* Updates remain available for the current session. */ }},[soundEnabled,preferencesLoaded]);
 
   const showNotification = useCallback((title: string, message: string, type: NotificationItem['type'] = 'info') => {
     const newNotif: NotificationItem = {
@@ -126,7 +135,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.9, transition: { duration: 0.2 } }}
                 transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                className={`pointer-events-auto p-3.5 liquid-glass-elevated border-l-4 ${getBorderAccent()} shadow-2xl relative overflow-hidden group`}
+                className={`brand-toast pointer-events-auto p-3.5 liquid-glass-elevated border-l-4 ${getBorderAccent()} shadow-2xl relative overflow-hidden group`}
                 style={{ borderRadius: '4px' }}
               >
                 <div className="flex items-start gap-3">
@@ -136,6 +145,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                     <p className="text-xs text-slate-300 leading-relaxed font-normal">{toast.message}</p>
                   </div>
                   <button
+                    aria-label="Dismiss notification"
                     onClick={() => setActiveToasts(prev => prev.filter(t => t.id !== toast.id))}
                     className="p-1 text-slate-400 hover:text-white transition-colors"
                   >

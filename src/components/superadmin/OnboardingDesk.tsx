@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useAppData } from '@/context/AppDataContext';
 import { useNotifications } from '@/context/NotificationContext';
@@ -22,14 +22,15 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function OnboardingDesk() {
+export function OnboardingDesk({ createRequest = 0, initialSearch = '', compactHeader = false }: { createRequest?: number; initialSearch?: string; compactHeader?: boolean }) {
   const { users, onboardUser, updateUser, deleteUser, updateUserRole } = useAuth();
   const { policy, addDepartment } = useAppData();
   const { showNotification } = useNotifications();
 
+  const handledCreateRequest = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   // Form states
   const [name, setName] = useState('');
@@ -40,8 +41,10 @@ export function OnboardingDesk() {
   const [salary, setSalary] = useState(8500);
   const [tempPassword, setTempPassword] = useState(() => generateTemporaryPassword());
   const [copied, setCopied] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; name: string } | null>(null);
 
   const handleOpenModal = () => {
+    setCopied(false);
     setTempPassword(generateTemporaryPassword());
     setName('');
     setEmail('');
@@ -51,8 +54,11 @@ export function OnboardingDesk() {
     setShowModal(true);
   };
 
-  const handleCopyCredentials = () => {
-    navigator.clipboard.writeText(`quickslogx Portal Login\nEmail: ${email || 'user@quickslogx.com'}\nTemporary Password: ${tempPassword}\nNote: First login mandates immediate password replacement.`);
+  useEffect(() => { if (createRequest > handledCreateRequest.current) { handledCreateRequest.current = createRequest; setName(''); setEmail(''); setCopied(false); setRole('manager'); setDesignation('Engineering Team Lead / Manager'); setSalary(8500); setDepartment(policy.departments?.[0] || 'Executive Leadership'); setTempPassword(generateTemporaryPassword()); setShowModal(true); } }, [createRequest, policy.departments]);
+
+  const handleCopyCredentials = async () => {
+    try { await navigator.clipboard.writeText(`quickslogx Portal Login\nEmail: ${email || 'user@quickslogx.com'}\nTemporary Password: ${tempPassword}\nNote: First login mandates immediate password replacement.`);
+    } catch { showNotification('Copy unavailable', 'Select and copy the credentials manually.', 'warning'); return; }
     setCopied(true);
     showNotification('Copied', 'Temporary login credentials copied to clipboard.', 'info');
     setTimeout(() => setCopied(false), 2000);
@@ -61,18 +67,20 @@ export function OnboardingDesk() {
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name || !email) {
+    if (!name.trim() || !email.trim()) {
       showNotification('Missing Fields', 'Please specify full name and email.', 'warning');
       return;
     }
+
+    if (users.some(user => user.email.trim().toLowerCase() === email.trim().toLowerCase())) { showNotification('Email already exists', 'Use a unique work email for this account.', 'warning'); return; }
 
     if (department.trim() && !policy.departments?.includes(department.trim())) {
       addDepartment(department.trim());
     }
 
     onboardUser({
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       password: tempPassword,
       tempPassword: true,
       mustChangePassword: true, // Compulsory Change Password on first login!
@@ -87,6 +95,9 @@ export function OnboardingDesk() {
       leaveQuota: { medical: 10, casual: 10, annual: 18 }
     });
 
+    setCopied(false);
+    setCreatedCredentials({ email: email.trim().toLowerCase(), password: tempPassword, name: name.trim() });
+    showNotification('Account created', 'Temporary credentials are ready. The user must change their password at first login.', 'success');
     setShowModal(false);
   };
 
@@ -98,8 +109,8 @@ export function OnboardingDesk() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Top action header */}
+    <div className="space-y-6 at-people-desk">
+      {!compactHeader && <>{/* Top action header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">
@@ -123,7 +134,7 @@ export function OnboardingDesk() {
         </LiquidButton>
       </div>
 
-      {/* Users table card */}
+      </>}{/* Users table card */}
       <LiquidGlassCard variant="elevated" className="p-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-200/80 dark:border-white/10">
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -252,6 +263,7 @@ export function OnboardingDesk() {
         </div>
       </LiquidGlassCard>
 
+      {createdCredentials && <div className="at-credentials-card" role="dialog" aria-modal="true" aria-label="New account credentials"><div className="at-credentials-sheet"><Check className="text-emerald-600" size={26}/><h2>Ready for their first day.</h2><p>{createdCredentials.name}'s account is created. Copy these credentials and share them with your teammate. Their first login requires a password change.</p><dl><dt>Login email</dt><dd>{createdCredentials.email}</dd><dt>Temporary password</dt><dd>{createdCredentials.password}</dd></dl><p>These credentials are displayed for this onboarding session.</p><div className="at-credentials-actions"><button className="at-button at-button-white" type="button" onClick={()=>setCreatedCredentials(null)}>Done</button><button className="at-button at-button-black" type="button" onClick={handleCopyCredentials}>{copied?'Copied':'Copy credentials'}<Copy size={14}/></button></div></div></div>}
       {/* Onboarding Modal with Auto Temp Password */}
       <AnimatePresence>
         {showModal && (

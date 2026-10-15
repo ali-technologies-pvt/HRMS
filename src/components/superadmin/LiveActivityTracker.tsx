@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function LiveActivityTracker() {
+export function LiveActivityTracker({ compactHeader = false }: { compactHeader?: boolean }) {
   const { users, currentUser } = useAuth();
   const { tasks, projects, attendance } = useAppData();
 
@@ -121,7 +121,7 @@ export function LiveActivityTracker() {
 
   return (
     <div className="space-y-6">
-      {/* Super Admin Welcome Hero Banner */}
+      {!compactHeader && <>{/* Super Admin Welcome Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -159,7 +159,7 @@ export function LiveActivityTracker() {
         </div>
       </motion.div>
 
-      {/* Top Banner / Metrics Overview */}
+      </>}{/* Top Banner / Metrics Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <LiquidGlassCard glow="cyan" interactive className="p-4">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono uppercase mb-2">
@@ -203,7 +203,7 @@ export function LiveActivityTracker() {
             <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Active</span>
           </div>
           <div className="mt-2 text-[10px] text-indigo-600 dark:text-violet-300 font-mono font-semibold">
-            High Velocity Focus
+            Tasks in progress
           </div>
         </LiquidGlassCard>
 
@@ -217,7 +217,7 @@ export function LiveActivityTracker() {
             <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Queued</span>
           </div>
           <div className="mt-2 text-[10px] text-amber-600 dark:text-amber-300 font-mono font-semibold">
-            Allocated across pods
+            Ready to schedule
           </div>
         </LiquidGlassCard>
       </div>
@@ -229,10 +229,10 @@ export function LiveActivityTracker() {
           <div>
             <div className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-sky-600 dark:text-cyan-400" />
-              Real-Time Live Activity Dashboard
+              Workforce overview
             </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-wide mt-0.5 flex items-center gap-2">
-              <span>Live Employee Telemetry & Task Monitor</span>
+              <span>Team activity & current work</span>
               <span className="text-xs font-normal font-mono text-slate-500">
                 ({filteredStaff.length} of {staff.length})
               </span>
@@ -243,7 +243,7 @@ export function LiveActivityTracker() {
             {/* Realtime Synchronized Badge */}
             <span className="text-xs font-mono text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-[2px] font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
-              SYNCHRONIZED REALTIME
+              Live updates
             </span>
 
             {/* View Mode Toggle: Table vs Cards */}
@@ -310,7 +310,7 @@ export function LiveActivityTracker() {
             >
               {departments.map(d => (
                 <option key={d} value={d} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                  {d === 'all' ? 'All Pods / Depts' : d}
+                  {d === 'all' ? 'All departments' : d}
                 </option>
               ))}
             </select>
@@ -336,7 +336,7 @@ export function LiveActivityTracker() {
               <thead>
                 <tr className="bg-slate-100/75 dark:bg-slate-900/70 border-b border-slate-200/80 dark:border-white/10 text-[10px] font-mono uppercase text-slate-600 dark:text-slate-400 tracking-wider">
                   <th className="py-3 px-3">Employee / Identity</th>
-                  <th className="py-3 px-3">Pod & Designation</th>
+                  <th className="py-3 px-3">Department & role</th>
                   <th className="py-3 px-3">Live Status</th>
                   <th className="py-3 px-3">Currently Active Task</th>
                   <th className="py-3 px-3">Session Stopwatch</th>
@@ -394,7 +394,7 @@ export function LiveActivityTracker() {
                           </div>
                         </td>
 
-                        {/* Pod & Designation */}
+                        {/* Department & role */}
                         <td className="py-3 px-3">
                           <div className="font-medium text-slate-800 dark:text-slate-200 text-xs">
                             {member.designation}

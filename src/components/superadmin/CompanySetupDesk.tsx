@@ -8,10 +8,11 @@ import { SquareBadge } from '../common/SquareBadge';
 import { FolderKanban, Plus, Clock, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function CompanySetupDesk() {
+export function CompanySetupDesk({ initialTab = 'projects', focusedProjectId, compactHeader = false }: { initialTab?: 'projects' | 'policies'; focusedProjectId?: string; compactHeader?: boolean }) {
   const { projects, addProject, policy, updateCompanyPolicy } = useAppData();
 
-  const [activeTab, setActiveTab] = useState<'projects' | 'policies'>('projects');
+  const [projectFocus, setProjectFocus] = useState(focusedProjectId);
+  const [activeTab, setActiveTab] = useState<'projects' | 'policies'>(initialTab);
 
   // New project modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -80,6 +81,7 @@ export function CompanySetupDesk() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {!compactHeader && <>
         <div>
           <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">
             Enterprise Architecture
@@ -92,6 +94,7 @@ export function CompanySetupDesk() {
           </p>
         </div>
 
+        </>}
         {/* Tab switchers */}
         <div className="flex items-center gap-1.5 p-1 liquid-glass rounded-[3px] border border-slate-200/80 dark:border-white/10 shadow-sm">
           <button
@@ -119,7 +122,7 @@ export function CompanySetupDesk() {
         </div>
       </div>
 
-      {/* Projects Desk Tab */}
+      {projectFocus && <button type="button" className="at-button at-button-white" onClick={() => setProjectFocus(undefined)}>Show all projects</button>}{/* Projects Desk Tab */}
       {activeTab === 'projects' && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -134,7 +137,7 @@ export function CompanySetupDesk() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((proj) => (
+            {projects.filter(project => !projectFocus || project.id === projectFocus).map((proj) => (
               <LiquidGlassCard key={proj.id} interactive glow="cyan" className="p-4 flex flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -230,7 +233,7 @@ export function CompanySetupDesk() {
                     className="w-32 glass-input px-3 py-2 text-sm font-mono"
                   />
                   <span className="text-xs text-slate-600 dark:text-slate-400">
-                    Employees clocking in after <span className="text-sky-700 dark:text-cyan-300 font-mono font-bold">09:15</span> are flagged as Late.
+                    Employees clocking in after <span className="text-sky-700 dark:text-cyan-300 font-mono font-bold">{(() => { const [hour, minute] = startTime.split(':').map(Number); const limit = (hour * 60 + minute + Number(gracePeriod)) % 1440; return `${String(Math.floor(limit / 60)).padStart(2, '0')}:${String(limit % 60).padStart(2, '0')}`; })()}</span> are flagged as Late.
                   </span>
                 </div>
               </div>

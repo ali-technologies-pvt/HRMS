@@ -28,6 +28,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Development previews must always use fresh HTML, scripts and styles.
+  if (['localhost', '127.0.0.1', '[::1]'].includes(self.location.hostname)) return;
   // Only handle GET requests and skip Supabase / external APIs
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
@@ -67,4 +69,3 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-

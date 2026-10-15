@@ -17,8 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "quickslogx HRMS | Liquid Glassmorphic Enterprise OS",
-  description: "Next-generation Human Resource Management System with Apple-grade spring physics, liquid glassmorphism, and real-time workforce telemetry.",
+  title: "quickslogx | People & Projects",
+  description: "Your people, projects, attendance and everyday work in one place.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
