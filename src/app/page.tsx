@@ -54,7 +54,7 @@ function HRMSPortalContent() {
   const [currentView, setCurrentView] = useState<PortalView>('admin_overview');
   const [unifiedTab, setUnifiedTab] = useState<'manager' | 'hr'>('manager');
   const [showOperations, setShowOperations] = useState(false);
-  const isDashboard = ['admin_overview', 'manager_dashboard', 'emp_dashboard', 'hr_attendance'].includes(currentView);
+  const isDashboard = ['manager_dashboard', 'emp_dashboard'].includes(currentView);
 
   const currentRole = currentUser?.role;
 
@@ -68,7 +68,7 @@ function HRMSPortalContent() {
       setCurrentView('manager_dashboard');
     } else if (currentRole === 'hr') {
       setUnifiedTab('hr');
-      setCurrentView('hr_attendance');
+      setCurrentView('manager_dashboard');
     } else if (currentRole === 'manager_hr') {
       setUnifiedTab('manager');
       setCurrentView('manager_dashboard');
@@ -111,7 +111,7 @@ function HRMSPortalContent() {
 
       // HR Views
       case 'hr_attendance':
-        return <AttendanceDesk />;
+        return <AttendanceDesk compactHeader />;
       case 'hr_leave_management':
         return <LeaveManagementDesk />;
       case 'hr_payroll':
@@ -144,7 +144,7 @@ function HRMSPortalContent() {
 
   return (
     <RoleWorkspaceShell view={currentView} onNavigate={(view)=>{setCurrentView(view);setShowOperations(false);}} workspace={unifiedTab} onWorkspace={setUnifiedTab}>
-      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={setCurrentView} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : currentUser.role === 'employee' ? 'Open my day · shift & daily report' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
+      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={(view)=>{setCurrentView(view);if(view==='emp_dashboard')setShowOperations(true);}} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : currentUser.role === 'employee' ? 'Open my day · shift & daily report' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
       {/* First-Login Mandatory Change Password Modal */}
       <ForcePasswordModal />
 
