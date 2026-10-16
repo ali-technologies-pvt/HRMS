@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowDownToLine, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Ellipsis, FileText, LayoutGrid, Menu, Plus, Search, Settings2, ShieldCheck, Users, X } from 'lucide-react';
-import './luxury-admin.css';
-import './admin-finish.css';
 import { MetricValue } from './AnimatedMetricValue';
 
 const people = [

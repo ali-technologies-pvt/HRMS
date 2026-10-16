@@ -22,11 +22,7 @@ import { NotificationInbox } from '../common/NotificationInbox';
 import { ForcePasswordModal } from '../common/ForcePasswordModal';
 import { FloatingChatWidget } from '../chat/FloatingChatWidget';
 import { MetricValue } from '../common/AnimatedMetricValue';
-import '../common/luxury-admin.css';
-import '../common/admin-finish.css';
-import '../common/brand-system.css';
 
-import '../common/clean-workspace.css';
 
 type Section = 'Overview' | 'People' | 'Projects' | 'Activity' | 'Attendance' | 'Requests' | 'Reports' | 'Broadcasts' | 'Team chat' | 'Company setup';
 const initials = (name: string) => name.split(' ').filter(Boolean).map(part => part[0]).slice(0,2).join('').toUpperCase();

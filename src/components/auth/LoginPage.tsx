@@ -4,7 +4,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import './login.css';
 export function LoginPage({onTransitionStart,onTransitionEnd}:{onTransitionStart?:()=>void;onTransitionEnd?:()=>void}){
  const {loginWithCredentials}=useAuth();const {theme,toggleTheme}=useTheme();const reduced=useReducedMotion();
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[visible,setVisible]=useState(false),[error,setError]=useState(''),[loading,setLoading]=useState(false);

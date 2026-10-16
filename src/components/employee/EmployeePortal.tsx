@@ -19,11 +19,6 @@ import { ChatDesk } from '../chat/ChatDesk';
 import type { RequestType } from '@/types';
 import type { PortalView } from '../layout/Sidebar';
 import { officeDate } from '@/lib/attendance-payroll';
-import '../common/luxury-admin.css';
-import '../common/admin-finish.css';
-import '../common/brand-system.css';
-import '../common/clean-workspace.css';
-import './employee-portal.css';
 const navigation=[{id:'emp_dashboard',label:'Dashboard',icon:LayoutDashboard},{id:'emp_tasks',label:'My tasks',icon:CheckSquare},{id:'emp_requests',label:'Requests',icon:FileText},{id:'emp_payslips',label:'Salary slips',icon:Wallet},{id:'emp_report',label:'Daily report',icon:FileText},{id:'emp_noticeboard',label:'Noticeboard',icon:Megaphone},{id:'team_chat',label:'Team chat',icon:MessageSquare}] as const;
 export function EmployeePortal(){
  const {currentUser,logout,updateUserStatus}=useAuth();const {reports,tasks,clockOut,getUserTodayAttendance}=useAppData();const {notifications}=useNotifications();const {theme}=useTheme();const reduced=useReducedMotion();const [view,setView]=useState<PortalView>('emp_dashboard'),[month,setMonth]=useState(officeDate().slice(0,7)),[mobile,setMobile]=useState(false),[profile,setProfile]=useState(false),[inbox,setInbox]=useState(false),[exit,setExit]=useState(false),[query,setQuery]=useState(''),[photoFailed,setPhotoFailed]=useState(false);const [requestDraft,setRequestDraft]=useState<{date:string;type:RequestType}|undefined>();const closeProfile=useCallback(()=>setProfile(false),[]);const dialog=useRef<HTMLElement>(null);const sidebar=useRef<HTMLElement>(null);const [smallScreen,setSmallScreen]=useState(false);

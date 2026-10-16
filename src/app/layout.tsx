@@ -1,6 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Open_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+// Keep the cascade identical in development and production builds.
+import "../components/common/luxury-admin.css";
+import "../components/common/admin-finish.css";
+import "../components/common/brand-system.css";
+import "../components/common/role-workspace.css";
+import "../components/common/role-refinement.css";
+import "../components/common/clean-workspace.css";
+import "../components/employee/employee-portal.css";
+import "../components/auth/login.css";
+import "../components/common/workspace-button.css";
+import "../context/notifications.css";
 
 const openSans = Open_Sans({
   subsets: ["latin"],
@@ -62,7 +73,7 @@ export default function RootLayout({
             __html: `
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(function(err) {
                     console.warn('SW registration:', err);
                   });
                 });

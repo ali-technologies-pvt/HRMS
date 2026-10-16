@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { NotificationItem } from '@/types';
 import { playGlassChime } from '@/lib/utils';
 import { createPortal } from 'react-dom';
-import './notifications.css';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 

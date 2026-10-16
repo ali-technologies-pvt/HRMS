@@ -1,5 +1,5 @@
 // quickslogx HRMS - Progressive Web App Service Worker
-const CACHE_NAME = 'quickslogx-pwa-v2';
+const CACHE_NAME = 'quickslogx-pwa-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json'
@@ -28,29 +28,18 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Development previews must always use fresh HTML, scripts and styles.
-  if (['localhost', '127.0.0.1', '[::1]'].includes(self.location.hostname)) return;
-  // Only handle GET requests and skip Supabase / external APIs
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-
-  // Stale-while-revalidate for local static assets
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      }).catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
-  );
+  // HTML must come from the current deployment. Never cache APIs or Next data.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(async () =>
+      (await caches.match('/')) || new Response('You are offline. Please reconnect.', {
+        status: 503, headers: { 'Content-Type': 'text/plain' }
+      })
+    ));
+  }
+  // Let the browser handle fingerprinted assets and all other requests normally.
 });
 
 // Focus active browser tab or window when user clicks desktop push notification
