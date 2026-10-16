@@ -1,12 +1,12 @@
 import { MongoClient, Db } from 'mongodb';
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || process.env.DATABASE_URL;
 const options = {};
 
 let client: MongoClient | null = null;
 let clientPromise: Promise<MongoClient> | null = null;
 
-if (process.env.MONGODB_URI) {
+if (uri) {
   if (process.env.NODE_ENV === 'development') {
     // In development mode, use a global variable so that the value
     // is preserved across module reloads caused by HMR (Hot Module Replacement).
