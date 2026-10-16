@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { EmployeePortal } from '@/components/employee/EmployeePortal';
 import { SuperAdminWorkspace } from '@/components/superadmin/SuperAdminWorkspace';
 import { RoleWorkspaceShell } from '@/components/common/RoleWorkspaceShell';
 import { WorkspaceOverview } from '@/components/common/WorkspaceOverview';
@@ -12,7 +13,7 @@ import { AmbientBackground } from '@/components/common/AmbientBackground';
 import { Topbar } from '@/components/layout/Topbar';
 import { PortalView } from '@/components/layout/Sidebar';
 import { ForcePasswordModal } from '@/components/common/ForcePasswordModal';
-import { DailyAttendancePopup } from '@/components/common/DailyAttendancePopup';
+
 
 // Super Admin Components
 import { LiveActivityTracker } from '@/components/superadmin/LiveActivityTracker';
@@ -83,6 +84,7 @@ function HRMSPortalContent() {
   }
 
   if (currentUser.role === 'super_admin') return <SuperAdminWorkspace />;
+  if (currentUser.role === 'employee') return <EmployeePortal />;
 
   // Render the appropriate portal view
   const renderView = () => {
@@ -144,12 +146,12 @@ function HRMSPortalContent() {
 
   return (
     <RoleWorkspaceShell view={currentView} onNavigate={(view)=>{setCurrentView(view);setShowOperations(false);}} workspace={unifiedTab} onWorkspace={setUnifiedTab}>
-      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={(view)=>{setCurrentView(view);if(view==='emp_dashboard')setShowOperations(true);}} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : currentUser.role === 'employee' ? 'Open my day · shift & daily report' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
+      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={(view)=>{setCurrentView(view);if(view==='emp_dashboard')setShowOperations(true);}} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
       {/* First-Login Mandatory Change Password Modal */}
       <ForcePasswordModal />
 
       {/* First-Login Daily Attendance Prompt Popup */}
-      <div className="at-live-desk"><DailyAttendancePopup /></div>
+
 
       {/* Global Real-Time Floating Live Chat Widget */}
       <div className="at-live-chat"><FloatingChatWidget /></div>

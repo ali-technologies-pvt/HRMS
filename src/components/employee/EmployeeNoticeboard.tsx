@@ -23,10 +23,10 @@ export function EmployeeNoticeboard() {
           Corporate Notices
         </span>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide">
-          Company Noticeboard & Real-Time Circulars
+          Company noticeboard
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Live announcements published by Super Admins and Team Managers across the organization.
+          Updates for your team and department.
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export function EmployeeNoticeboard() {
           <div className="py-20 text-center liquid-glass border border-slate-200/80 dark:border-white/10 rounded-[3px] p-6 space-y-2">
             <Megaphone className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto" />
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No active circulars</h3>
-            <p className="text-xs text-slate-500 font-mono">Company announcements and alerts will stream here in real time.</p>
+            <p className="text-xs text-slate-500 font-mono">New announcements will appear here.</p>
           </div>
         ) : (
           relevantAnnouncements.map((anc) => {

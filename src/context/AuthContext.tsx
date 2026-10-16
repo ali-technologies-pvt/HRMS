@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pushUserToSupabase(updated);
       return updated;
     });
-    showNotification('Profile Saved', 'Your profile customization has been applied.', 'success');
+    if(Object.keys(updates).some(key=>['name','avatarUrl','phone','bio','department','designation'].includes(key)))showNotification('Profile Saved', 'Your profile details have been updated.', 'success');
   }, [users, syncUsers, showNotification]);
 
   const changePassword = useCallback((oldPass: string, newPass: string) => {
@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Push immediately to Supabase Cloud
     pushUserToSupabase(created);
     return created;
-  }, [users, syncUsers, showNotification]);
+  }, [users, syncUsers]);
 
   const updateUser = useCallback((userId: string, updates: Partial<User>) => {
     const target = users.find(u => u.id === userId);

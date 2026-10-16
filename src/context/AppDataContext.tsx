@@ -23,6 +23,7 @@ import {
   initialPayslips,
   initialCompanyPolicy
 } from '@/lib/initialData';
+import { monthAttendance, officeDate, shiftDate, timeMinutes } from '@/lib/attendance-payroll';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@/lib/storage';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
@@ -143,7 +144,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setAnnouncements(loadFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, initialAnnouncements));
     const loadedPolicy = loadFromStorage<CompanyPolicy>(STORAGE_KEYS.POLICY, initialCompanyPolicy);
     if (loadedPolicy) {
-      if (loadedPolicy.officeStartTime === '09:00' || !loadedPolicy.officeStartTime) {
+      if (!loadedPolicy.officeStartTime) {
         loadedPolicy.officeStartTime = '09:30';
         loadedPolicy.officeEndTime = '18:00';
         loadedPolicy.gracePeriodMinutes = 15;
@@ -526,7 +527,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // EOD Reports
   const generateEODPreview = useCallback((userId: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = officeDate();
     const userTasks = tasks.filter(t => t.assignedToId === userId);
 
     const completedTasks = userTasks
@@ -600,23 +601,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // Attendance
   const getUserTodayAttendance = useCallback((userId: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return attendance.find(a => a.userId === userId && a.date === todayStr);
-  }, [attendance]);
+    const todayStr = shiftDate(policy);
+    return attendance.filter(a=>a.userId===userId&&a.clockIn&&!a.clockOut).sort((a,b)=>b.date.localeCompare(a.date))[0] || attendance.find(a => a.userId === userId && a.date === todayStr);
+  }, [attendance, policy]);
 
   const clockIn = useCallback((userId: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = shiftDate(policy);
     const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const timeStr = now.toLocaleTimeString('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 
     // Compare with officeStartTime e.g. 09:30 and gracePeriodMinutes e.g. 15
     const [startH, startM] = (policy.officeStartTime || '09:30').split(':').map(Number);
     const startTotalMins = startH * 60 + startM; // 09:30 => 570 mins
-    const currentTotalMins = now.getHours() * 60 + now.getMinutes();
+    let currentTotalMins = Number(timeStr.slice(0,2))*60+Number(timeStr.slice(3));
+    if(policy.officeEndTime<=policy.officeStartTime&&currentTotalMins<startTotalMins-720)currentTotalMins+=1440;
     const graceLimit = startTotalMins + (policy.gracePeriodMinutes ?? 15); // 585 mins => 09:45 AM
 
     const isLate = currentTotalMins > graceLimit;
-    const minsLate = isLate ? currentTotalMins - startTotalMins : 0;
+    const minsLate = isLate ? currentTotalMins - graceLimit : 0;
 
     const userObj = users.find(u => u.id === userId) || currentUser;
 
@@ -632,11 +634,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       userName: userObj.name,
       department: userObj.department || 'Operations',
       date: todayStr,
+      shiftStartTime: policy.officeStartTime,
+      shiftEndTime: policy.officeEndTime,
+      gracePeriodMinutes: policy.gracePeriodMinutes,
       clockIn: timeStr,
       totalWorkMinutes: 0,
       status: isLate ? 'late' : 'present',
       isLate,
-      lateReason: isLate ? `Late by ${minsLate} mins (Grace limit: 09:45 AM)` : undefined,
+      lateReason: isLate ? `Late by ${minsLate} mins (Shift: ${policy.officeStartTime}, grace: ${policy.gracePeriodMinutes}m)` : undefined,
       overtimeHours: 0
     };
 
@@ -645,18 +650,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     updateCurrentUserProfile({ status: 'online' });
 
     if (isLate) {
-      showNotification('Clock-In Logged (Late)', `Punched in at ${timeStr}. Grace period (${policy.gracePeriodMinutes || 15}m) exceeded.`, 'warning');
+      showNotification('Clock-In Logged (Late)', `Punched in at ${timeStr}. Grace period (${policy.gracePeriodMinutes ?? 15}m) exceeded.`, 'warning');
     } else {
       showNotification('Punched In (On-Time)', `Good morning! Clocked in at ${timeStr}. Have a productive day!`, 'success');
     }
   }, [attendance, policy, users, currentUser, updateCurrentUserProfile, showNotification]);
 
   const clockOut = useCallback((userId: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = shiftDate(policy);
     const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const timeStr = now.toLocaleTimeString('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 
-    const existing = attendance.find(a => a.userId === userId && a.date === todayStr);
+    const existing = attendance.filter(a=>a.userId===userId&&a.clockIn&&!a.clockOut).sort((a,b)=>b.date.localeCompare(a.date))[0] || attendance.find(a => a.userId === userId && a.date === todayStr);
     if (!existing) {
       showNotification('Not Clocked In', 'Please punch in first before punching out.', 'warning');
       return;
@@ -665,12 +670,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     // Calculate total minutes
     const [inH, inM] = existing.clockIn.split(':').map(Number);
     const inTotalMins = inH * 60 + inM;
-    const outTotalMins = now.getHours() * 60 + now.getMinutes();
+    const outTotalMins = Number(timeStr.slice(0,2))*60+Number(timeStr.slice(3))+(existing.date<officeDate()?1440:0);
     const workedMins = Math.max(0, outTotalMins - inTotalMins);
 
     // Overtime past officeEndTime e.g. 18:00
-    const [endH, endM] = (policy.officeEndTime || '18:00').split(':').map(Number);
-    const endTotalMins = endH * 60 + endM; // 18:00 => 1080 mins
+    const [endH, endM] = (existing.shiftEndTime || policy.officeEndTime || '18:00').split(':').map(Number);
+    let endTotalMins = endH * 60 + endM;
+    if(timeMinutes(existing.shiftEndTime||policy.officeEndTime)<=timeMinutes(existing.shiftStartTime||policy.officeStartTime))endTotalMins+=1440;
     let overtimeHours = 0;
     if (outTotalMins > endTotalMins) {
       overtimeHours = Number(((outTotalMins - endTotalMins) / 60).toFixed(1));
@@ -750,6 +756,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         clockIn: record.clockIn,
         clockOut: record.clockOut,
         totalWorkMinutes: workedMins,
+        shiftStartTime: policy.officeStartTime,
+        shiftEndTime: policy.officeEndTime,
+        gracePeriodMinutes: policy.gracePeriodMinutes,
         status: calculatedStatus,
         isLate,
         overtimeHours,
@@ -872,20 +881,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // Payroll
   const generateMonthlyPayroll = useCallback((month: string, year: number) => {
     const newPayslips: Payslip[] = users.map(user => {
-      const basic = user.salary || 5000;
+      const paid=payslips.find(slip=>slip.userId===user.id&&slip.month===month&&slip.year===year&&slip.status==='paid');
+      if(paid)return paid;
+      const basic = Math.max(0,user.salary || 0);
+      const monthIndex=new Date(month.split(' ')[0]+' 1, '+year).getMonth();
+      const monthKey=year+'-'+String(monthIndex+1).padStart(2,'0');
+      const summary=monthAttendance({user,month:monthKey,attendance,requests,policy});
       // Calculate approved overtime
-      const userRequests = requests.filter(r => r.userId === user.id && r.type === 'overtime' && r.status === 'approved');
+      const userRequests = requests.filter(r => r.userId === user.id && r.type === 'overtime' && r.status === 'approved' && r.startDate.startsWith(monthKey));
       const totalOvertimeHours = userRequests.reduce((acc, curr) => acc + (curr.hours || 0), 0);
       const hourlyRate = basic / (22 * 8); // 22 working days * 8h
       const overtimePay = Math.round(totalOvertimeHours * hourlyRate * 1.5);
 
-      // Calculate unpaid leaves (Loss of Pay)
-      const userLeaves = requests.filter(r => r.userId === user.id && r.type === 'leave' && r.status === 'approved');
-      const totalLeaveDays = userLeaves.length;
-      const allowedQuota = (user.leaveQuota.medical + user.leaveQuota.casual + user.leaveQuota.annual) / 12; // monthly allowance
-      const lopDays = Math.max(0, Math.round(totalLeaveDays - allowedQuota));
-      const dailyRate = basic / 22;
-      const lopDeduction = Math.round(lopDays * dailyRate);
+      const lopDays = summary.days.filter(day=>day.deduction>0).reduce((sum,day)=>sum+day.deduction/Math.max(1,summary.dailyRate),0);
+      const lopDeduction = summary.deduction;
 
       const allowances = Math.round(basic * 0.08); // 8% standard allowances
       const taxDeduction = Math.round(basic * 0.1); // 10% tax bracket
@@ -902,6 +911,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         basicSalary: basic,
         overtimeHours: totalOvertimeHours,
         overtimePay,
+        attendanceDeduction: lopDeduction,
+        attendanceReimbursement: summary.reimbursed,
         lossOfPayDays: lopDays,
         lossOfPayDeduction: lopDeduction,
         allowances,
@@ -912,13 +923,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       };
     });
 
-    syncData(STORAGE_KEYS.PAYSLIPS, newPayslips, setPayslips);
+    const retained=payslips.filter(slip=>slip.month!==month||slip.year!==year);
+    syncData(STORAGE_KEYS.PAYSLIPS, [...newPayslips,...retained], setPayslips);
     showNotification('Payroll Executed', `Consolidated payslips generated for ${month} ${year} across all staff.`, 'success');
-  }, [users, requests, showNotification]);
+  }, [users, requests, attendance, policy, payslips, showNotification]);
 
-  const getPayslipsForUser = useCallback((userId: string) => {
-    return payslips.filter(p => p.userId === userId);
-  }, [payslips]);
+  const adjustedPayslips = payslips.map(slip=>{
+    if(slip.attendanceDeduction===undefined||slip.status==='paid')return slip;
+    const user=users.find(member=>member.id===slip.userId);if(!user)return slip;
+    const index=new Date(slip.month.split(' ')[0]+' 1, '+slip.year).getMonth();if(!Number.isFinite(index))return slip;
+    const summary=monthAttendance({user:{...user,salary:slip.basicSalary},month:slip.year+'-'+String(index+1).padStart(2,'0'),attendance,requests,policy});
+    return {...slip,attendanceDeduction:summary.deduction,attendanceReimbursement:summary.reimbursed,lossOfPayDeduction:summary.deduction,lossOfPayDays:summary.deduction/Math.max(1,summary.dailyRate),netSalary:Math.round(slip.basicSalary+slip.overtimePay+slip.allowances-summary.deduction-slip.taxDeduction)};
+  });
+  const getPayslipsForUser = (userId: string) => adjustedPayslips.filter(slip=>slip.userId===userId);
 
   // Policy & Departments
   const updateCompanyPolicy = useCallback((updates: Partial<CompanyPolicy>) => {
@@ -959,7 +976,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         requests,
         attendance,
         announcements,
-        payslips,
+        payslips: adjustedPayslips,
         policy,
         addProject,
         updateProject,

@@ -1,9 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { NotificationItem } from '@/types';
 import { playGlassChime } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import './notifications.css';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 
 interface NotificationContextType {
@@ -29,6 +31,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       read: false
     }
   ]);
+  const reduced=useReducedMotion();
+  const timers=useRef(new Map<string,ReturnType<typeof setTimeout>>());
+  const [mounted,setMounted]=useState(false);
+  useEffect(()=>{setMounted(true);const activeTimers=timers.current;return()=>{activeTimers.forEach(timer=>clearTimeout(timer));activeTimers.clear();};},[]);
+  const dismissToast=useCallback((id:string)=>{const timer=timers.current.get(id);if(timer)clearTimeout(timer);timers.current.delete(id);setActiveToasts(prev=>prev.filter(item=>item.id!==id));},[]);
   const [activeToasts, setActiveToasts] = useState<NotificationItem[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -64,11 +71,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [newNotif, ...prev]);
     setActiveToasts(prev => [newNotif, ...prev.slice(0, 3)]); // Keep max 4 toasts at once
 
-    // Auto-dismiss toast after 5 seconds
-    setTimeout(() => {
-      setActiveToasts(prev => prev.filter(t => t.id !== newNotif.id));
-    }, 5500);
-  }, [soundEnabled]);
+    timers.current.set(newNotif.id,setTimeout(()=>dismissToast(newNotif.id),6000));
+  }, [soundEnabled,dismissToast]);
 
   const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -76,11 +80,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const clearNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
-    setActiveToasts(prev => prev.filter(n => n.id !== id));
-  }, []);
+    dismissToast(id);
+  }, [dismissToast]);
 
   const clearAll = useCallback(() => {
     setNotifications([]);
+    timers.current.forEach(timer=>clearTimeout(timer));timers.current.clear();
     setActiveToasts([]);
   }, []);
 
@@ -98,72 +103,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     >
       {children}
 
-      {/* Floating Apple-style Dynamic Liquid Toast Stack */}
-      <div className="fixed top-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
-        <AnimatePresence>
-          {activeToasts.map((toast) => {
-            const getIcon = () => {
-              switch (toast.type) {
-                case 'success':
-                  return <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />;
-                case 'warning':
-                  return <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />;
-                case 'urgent':
-                  return <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />;
-                default:
-                  return <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />;
-              }
-            };
-
-            const getBorderAccent = () => {
-              switch (toast.type) {
-                case 'success':
-                  return 'border-l-emerald-400';
-                case 'warning':
-                  return 'border-l-amber-400';
-                case 'urgent':
-                  return 'border-l-rose-500';
-                default:
-                  return 'border-l-cyan-400';
-              }
-            };
-
-            return (
-              <motion.div
-                key={toast.id}
-                initial={{ opacity: 0, y: -20, scale: 0.94 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.9, transition: { duration: 0.2 } }}
-                transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                className={`brand-toast pointer-events-auto p-3.5 liquid-glass-elevated border-l-4 ${getBorderAccent()} shadow-2xl relative overflow-hidden group`}
-                style={{ borderRadius: '4px' }}
-              >
-                <div className="flex items-start gap-3">
-                  {getIcon()}
-                  <div className="flex-1 min-w-0 pr-4">
-                    <h4 className="text-xs font-semibold text-slate-100 uppercase tracking-wider mb-0.5">{toast.title}</h4>
-                    <p className="text-xs text-slate-300 leading-relaxed font-normal">{toast.message}</p>
-                  </div>
-                  <button
-                    aria-label="Dismiss notification"
-                    onClick={() => setActiveToasts(prev => prev.filter(t => t.id !== toast.id))}
-                    className="p-1 text-slate-400 hover:text-white transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {/* Progress highlight bar */}
-                <motion.div
-                  initial={{ width: '100%' }}
-                  animate={{ width: '0%' }}
-                  transition={{ duration: 5.5, ease: 'linear' }}
-                  className="absolute bottom-0 left-0 h-[2px] bg-white/20"
-                />
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+      {mounted&&createPortal(<div className="workspace-toast-stack" aria-label="Workspace notifications"><AnimatePresence initial={false}>{activeToasts.map(toast=>{const Icon=toast.type==='success'?CheckCircle2:toast.type==='warning'?AlertTriangle:toast.type==='urgent'?AlertCircle:Info;return <motion.div layout key={toast.id} className="workspace-toast" data-kind={toast.type} role={toast.type==='urgent'?'alert':'status'} initial={{opacity:0,y:reduced?0:-12,scale:reduced?1:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,x:reduced?0:24,scale:reduced?1:.98}} transition={{duration:reduced?0:.2,ease:[.22,1,.36,1]}}><span className="workspace-toast-icon"><Icon size={20}/></span><div className="workspace-toast-copy"><strong>{toast.title}</strong><p>{toast.message}</p></div><button type="button" className="workspace-toast-close" aria-label={'Dismiss notification: '+toast.title} onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.stopPropagation();dismissToast(toast.id);}} onClick={event=>{event.preventDefault();event.stopPropagation();dismissToast(toast.id);}}><X size={17}/></button><motion.span className="workspace-toast-progress" initial={{scaleX:1}} animate={{scaleX:0}} transition={{duration:reduced?0:6,ease:'linear'}}/></motion.div>;})}</AnimatePresence></div>,document.body)}
     </NotificationContext.Provider>
   );
 }

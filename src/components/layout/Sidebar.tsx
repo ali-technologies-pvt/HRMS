@@ -51,6 +51,7 @@ export type PortalView =
   | 'hr_payroll'
   | 'hr_announcements'
   // Employee
+  | 'emp_report'
   | 'emp_dashboard'
   | 'emp_tasks'
   | 'emp_attendance'

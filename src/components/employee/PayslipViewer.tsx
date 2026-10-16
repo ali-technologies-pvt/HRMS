@@ -67,7 +67,7 @@ export function PayslipViewer() {
           ['Basic Contractual Salary', 'Earnings', `PKR ${slip.basicSalary.toLocaleString()}`],
           [`Approved Overtime (${slip.overtimeHours} Hours)`, 'Earnings', `+PKR ${slip.overtimePay.toLocaleString()}`],
           ['Standard Allowances (Medical & Travel)', 'Earnings', `+PKR ${slip.allowances.toLocaleString()}`],
-          [`Loss of Pay (Unpaid Absence: ${slip.lossOfPayDays} Days)`, 'Deduction', `-PKR ${slip.lossOfPayDeduction.toLocaleString()}`],
+          [`Attendance deductions (${slip.lossOfPayDays.toFixed(2)} day equivalent)`, 'Deduction', `-PKR ${slip.lossOfPayDeduction.toLocaleString()}`],
           ['Income Tax Withholding', 'Deduction', `-PKR ${slip.taxDeduction.toLocaleString()}`],
           ['NET SALARY DISBURSEMENT', 'FINAL PAY', `PKR ${slip.netSalary.toLocaleString()}`]
         ]
@@ -94,10 +94,10 @@ export function PayslipViewer() {
           Compensation & Earnings
         </span>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide">
-          My Monthly Payslips & Salary Statements
+          Salary slips
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          View transparent earnings breakdowns, overtime bonuses, and generate certified PDF payslips.
+          Review your earnings, attendance deductions and salary statements.
         </p>
       </div>
 
@@ -137,9 +137,10 @@ export function PayslipViewer() {
                     <span>+PKR {slip.allowances.toLocaleString()}</span>
                   </div>
 
+                  {!!slip.attendanceReimbursement && <div className="flex items-center justify-between text-slate-600"><span>Waived after approval:</span><span>PKR {slip.attendanceReimbursement.toLocaleString()}</span></div>}
                   {slip.lossOfPayDays > 0 && (
                     <div className="flex items-center justify-between text-rose-700 dark:text-rose-400 font-semibold">
-                      <span>Loss of Pay (LOP {slip.lossOfPayDays}d):</span>
+                      <span>Attendance deductions:</span>
                       <span>-PKR {slip.lossOfPayDeduction.toLocaleString()}</span>
                     </div>
                   )}

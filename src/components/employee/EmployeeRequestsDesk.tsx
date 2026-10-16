@@ -1,34 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { officeDate } from '@/lib/attendance-payroll';
 import { useAuth } from '@/context/AuthContext';
 import { useAppData } from '@/context/AppDataContext';
 import { LiquidGlassCard } from '../common/LiquidGlassCard';
 import { LiquidButton } from '../common/LiquidButton';
 import { SquareBadge } from '../common/SquareBadge';
 import { RequestType, LeaveSubType } from '@/types';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function EmployeeRequestsDesk() {
+export function EmployeeRequestsDesk({initialDate,initialType}:{initialDate?:string;initialType?:RequestType} = {}) {
   const { currentUser } = useAuth();
   const { requests, submitRequest } = useAppData();
 
+  const modal=useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
-  const [type, setType] = useState<RequestType>('leave');
+  const [type, setType] = useState<RequestType>(initialType||'leave');
   const [subType, setSubType] = useState<LeaveSubType>('casual');
   const [title, setTitle] = useState('');
   const [reason, setReason] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(initialDate||officeDate());
+  const [endDate, setEndDate] = useState(initialDate||officeDate());
   const [hours, setHours] = useState(2);
   const [projectDetails, setProjectDetails] = useState('');
+
+  useEffect(()=>{if(!showModal)return;const previous=document.activeElement as HTMLElement|null;const overflow=document.body.style.overflow;document.body.style.overflow='hidden';const items=()=>Array.from(modal.current?.querySelectorAll<HTMLElement>('button,input,select,textarea')||[]).filter(element=>!element.hasAttribute('disabled')&&element.getClientRects().length);items()[0]?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setShowModal(false);if(event.key!=='Tab')return;const all=items(),first=all[0],last=all[all.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',key);previous?.focus();};},[showModal]);
 
   const myRequests = requests.filter(r => r.userId === currentUser.id);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !reason) return;
+    if (!title.trim() || !reason.trim() || ((type==='leave'||type==='wfh'||type==='absence_excuse')&&endDate<startDate)) return;
 
     submitRequest({
       userId: currentUser.id,
@@ -39,7 +43,7 @@ export function EmployeeRequestsDesk() {
       title,
       reason,
       startDate,
-      endDate: type === 'leave' || type === 'wfh' ? endDate : undefined,
+      endDate: type === 'leave' || type === 'wfh' || type === 'absence_excuse' ? endDate : undefined,
       hours: type === 'overtime' || type === 'late_excuse' ? Number(hours) : undefined,
       projectDetails: type === 'overtime' ? projectDetails : undefined
     });
@@ -54,13 +58,13 @@ export function EmployeeRequestsDesk() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">
-            Self-Service Gateway
+            YOUR REQUESTS
           </span>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide">
-            Employee Requests & Leaves Desk
+            Requests & leave
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Submit formal requests for Leaves (Medical, Casual, Annual), WFH, Late Excuses, and Overtime claims.
+            Request leave, explain an absence or late arrival, and track your manager’s decision.
           </p>
         </div>
 
@@ -80,7 +84,7 @@ export function EmployeeRequestsDesk() {
           <div className="col-span-2 py-16 text-center liquid-glass border border-slate-200/80 dark:border-white/10 rounded-[3px] p-6 space-y-2">
             <FileText className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto" />
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No requests filed yet</h3>
-            <p className="text-xs text-slate-500 font-mono">Use the button above to lodge an application with your manager.</p>
+            <p className="text-xs text-slate-500 font-mono">Submit a request to your manager when you need one.</p>
           </div>
         ) : (
           myRequests.map((req) => {
@@ -90,6 +94,7 @@ export function EmployeeRequestsDesk() {
                 case 'wfh': return 'WORK FROM HOME';
                 case 'overtime': return `OVERTIME CLAIM (${req.hours}h)`;
                 case 'late_excuse': return 'LATE EXCUSE';
+                case 'absence_excuse': return 'ABSENCE EXCUSE';
               }
             };
 
@@ -157,11 +162,11 @@ export function EmployeeRequestsDesk() {
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.94 }}
-              className="relative z-10 w-full max-w-lg liquid-glass-elevated border border-sky-400/50 dark:border-cyan-500/30 p-6 rounded-[4px] shadow-2xl"
+              ref={modal} role="dialog" aria-modal="true" aria-labelledby="employee-request-title" className="relative z-10 w-full max-w-lg liquid-glass-elevated border border-sky-400/50 dark:border-cyan-500/30 p-6 rounded-[4px] shadow-2xl"
             >
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-200/80 dark:border-white/10">
                 <FileText className="w-5 h-5 text-sky-600 dark:text-cyan-400" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Lodge Official Request</h3>
+                <h3 id="employee-request-title" className="text-base font-bold text-slate-900 dark:text-white">New request</h3><button type="button" aria-label="Close request" onClick={()=>setShowModal(false)} className="ml-auto p-2 rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -177,7 +182,7 @@ export function EmployeeRequestsDesk() {
                     >
                       <option value="leave" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Leave Application</option>
                       <option value="wfh" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Work From Home (WFH)</option>
-                      <option value="late_excuse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Late Arrival Excuse</option>
+                      <option value="absence_excuse">Absence / Off Excuse</option><option value="late_excuse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Late Arrival Excuse</option>
                       <option value="overtime" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Overtime Compensation Claim</option>
                     </select>
                   </div>
@@ -220,14 +225,14 @@ export function EmployeeRequestsDesk() {
 
                 <div>
                   <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
-                    Subject / Summary
+                    Subject
                   </label>
                   <input
                     type="text"
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Urgent Medical Dental Surgery"
+                    placeholder="A short title for your request"
                     className="w-full glass-input px-3 py-2 text-sm"
                   />
                 </div>
@@ -246,7 +251,7 @@ export function EmployeeRequestsDesk() {
                     />
                   </div>
 
-                  {(type === 'leave' || type === 'wfh') && (
+                  {(type === 'leave' || type === 'wfh' || type === 'absence_excuse') && (
                     <div>
                       <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
                         End Date
@@ -254,6 +259,7 @@ export function EmployeeRequestsDesk() {
                       <input
                         type="date"
                         required
+                        min={startDate}
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         className="w-full glass-input px-3 py-2 text-xs font-mono"
@@ -272,7 +278,7 @@ export function EmployeeRequestsDesk() {
                       required
                       value={projectDetails}
                       onChange={(e) => setProjectDetails(e.target.value)}
-                      placeholder="e.g. Liquid Glassmorphic Core HRMS deliverables"
+                      placeholder="Project name"
                       className="w-full glass-input px-3 py-2 text-xs"
                     />
                   </div>
@@ -280,7 +286,7 @@ export function EmployeeRequestsDesk() {
 
                 <div>
                   <label className="block text-[11px] font-mono uppercase text-slate-600 dark:text-slate-400 mb-1 font-semibold">
-                    Detailed Reason & Justification
+                    Reason
                   </label>
                   <textarea
                     rows={3}
@@ -297,7 +303,7 @@ export function EmployeeRequestsDesk() {
                     Cancel
                   </LiquidButton>
                   <LiquidButton type="submit" variant="primary">
-                    Transmit Application
+                    Send request
                   </LiquidButton>
                 </div>
               </form>

@@ -5,7 +5,7 @@ export type UserStatus = 'online' | 'offline' | 'break' | 'in_meeting';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
 export type TaskStatus = 'pending' | 'in_progress' | 'needs_review' | 'completed' | 'blocked';
 
-export type RequestType = 'leave' | 'wfh' | 'late_excuse' | 'overtime';
+export type RequestType = 'leave' | 'wfh' | 'late_excuse' | 'absence_excuse' | 'overtime';
 export type LeaveSubType = 'medical' | 'casual' | 'annual';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
@@ -119,6 +119,9 @@ export interface RequestItem {
 }
 
 export interface AttendanceRecord {
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+  gracePeriodMinutes?: number;
   id: string;
   userId: string;
   userName: string;
@@ -159,6 +162,8 @@ export interface Payslip {
   basicSalary: number;
   overtimeHours: number;
   overtimePay: number;
+  attendanceDeduction?: number;
+  attendanceReimbursement?: number;
   lossOfPayDays: number;
   lossOfPayDeduction: number;
   allowances: number;

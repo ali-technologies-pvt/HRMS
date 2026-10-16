@@ -37,7 +37,7 @@ export function RequestsApprovalDesk() {
 
         {/* Filter tags */}
         <div className="flex flex-wrap items-center gap-1.5 p-1 liquid-glass rounded-[3px] border border-slate-200/80 dark:border-white/10 shadow-sm">
-          {['all', 'leave', 'wfh', 'overtime', 'late_excuse'].map((t) => (
+          {['all', 'leave', 'wfh', 'overtime', 'late_excuse', 'absence_excuse'].map((t) => (
             <button
               key={t}
               onClick={() => setFilterType(t)}
@@ -61,6 +61,7 @@ export function RequestsApprovalDesk() {
               case 'leave': return { label: `LEAVE (${req.subType?.toUpperCase() || 'CASUAL'})`, variant: 'violet' as const };
               case 'wfh': return { label: 'WORK FROM HOME', variant: 'cyan' as const };
               case 'overtime': return { label: `OVERTIME (${req.hours}h)`, variant: 'emerald' as const };
+              case 'absence_excuse': return { label: 'ABSENCE EXCUSE', variant: 'amber' as const };
               case 'late_excuse': return { label: 'LATE EXCUSE', variant: 'amber' as const };
             }
           };

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { LiquidButton } from './LiquidButton';
 import { ShieldAlert, KeyRound, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
-import confetti from 'canvas-confetti';
+
 
 export function ForcePasswordModal() {
   const { currentUser, completeMandatoryPasswordChange } = useAuth();
@@ -36,18 +36,7 @@ export function ForcePasswordModal() {
     const res = completeMandatoryPasswordChange(newPassword);
     setIsSubmitting(false);
 
-    if (res.success) {
-      try {
-        confetti({
-          particleCount: 120,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#0284c7', '#10b981', '#6366f1', '#ffffff']
-        });
-      } catch {}
-    } else {
-      setError(res.error || 'Failed to update credentials.');
-    }
+    if (!res.success) setError(res.error || 'Failed to update credentials.');
   };
 
   const hasMinLength = newPassword.length >= 8;

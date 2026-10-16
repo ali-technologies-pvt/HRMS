@@ -1,5 +1,5 @@
 // quickslogx HRMS - Progressive Web App Service Worker
-const CACHE_NAME = 'quickslogx-pwa-v1';
+const CACHE_NAME = 'quickslogx-pwa-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json'

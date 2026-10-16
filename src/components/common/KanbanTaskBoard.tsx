@@ -167,48 +167,11 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
   }, []);
 
   // Activity stream
-  const [activities, setActivities] = useState<ActivityLogItem[]>([
-    {
-      id: 'act-1',
-      userName: 'Hamza Tariq',
-      userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      action: 'completed task',
-      taskTitle: 'Report Aggregation Logic',
-      time: '12m ago',
-      color: 'emerald'
-    },
-    {
-      id: 'act-2',
-      userName: 'Zoya Malik',
-      userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-      action: 'requested review on',
-      taskTitle: 'Onboarding Copywriting',
-      time: '35m ago',
-      color: 'violet'
-    },
-    {
-      id: 'act-3',
-      userName: 'Hamza Tariq',
-      userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      action: 'started work on',
-      taskTitle: 'Liquid Glass Navigation',
-      time: '1h ago',
-      color: 'cyan'
-    },
-    {
-      id: 'act-4',
-      userName: 'Sarah Jenkins',
-      userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      action: 'assigned new task to',
-      taskTitle: 'Bilal Siddiqui (QA Suite)',
-      time: '2h ago',
-      color: 'amber'
-    }
-  ]);
+  const [activities, setActivities] = useState<ActivityLogItem[]>([]);
 
   const eligibleEmployees = useMemo(() => {
-    return users.filter(u => u.role === 'employee' || u.role === 'manager');
-  }, [users]);
+    return mode === 'employee' ? users.filter(u=>u.id===currentUser.id) : users.filter(u => u.role === 'employee' || u.role === 'manager');
+  }, [users, mode, currentUser.id]);
 
   // Filter out withdrawn projects so they never appear in task assignment dropdowns
   const activeAssignableProjects = useMemo(() => {
@@ -634,7 +597,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
     });
 
     baseTasks.forEach(t => {
-      const cat = t.category || 'UI Design';
+      const cat = t.category || 'General';
       if (!counts[cat]) {
         counts[cat] = { total: 0, completed: 0 };
       }
@@ -665,21 +628,21 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
               <FolderKanban className="w-4 h-4" />
             </span>
             <span className="text-[10px] font-mono tracking-widest uppercase text-sky-600 dark:text-cyan-400 font-extrabold">
-              {mode === 'manager' ? 'Team Task Hub & Collective Allocation' : 'Dedicated Personal Task Board'}
+              {mode === 'manager' ? 'Team Task Hub & Collective Allocation' : 'My tasks'}
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mt-1.5">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide">
               {selectedProjectId === 'all'
-                ? 'All Active Projects'
+                ? (mode === 'employee' ? 'Your task board' : 'All Active Projects')
                 : projects.find(p => p.id === selectedProjectId)?.name || 'Project Task Board'}
             </h2>
 
             {mode === 'employee' && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sky-500/10 border border-sky-400/30 text-sky-700 dark:text-cyan-300 text-xs font-mono font-semibold rounded-[2px]">
                 <Lock className="w-3 h-3" />
-                Data Privacy Enforced (Only Your Tasks)
+                Assigned to you
               </span>
             )}
           </div>
@@ -687,7 +650,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {mode === 'manager'
               ? 'Collective task board: Assign tasks to any team member, drag/move cards, and monitor live progress.'
-              : 'Execute your private tasks, start live stopwatch timers, and update task status with instant manager notification.'}
+              : 'Track your tasks, record your time and share progress with your manager.'}
           </p>
         </div>
 
@@ -1056,13 +1019,13 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                             {/* Comments */}
                             <span className="flex items-center gap-0.5">
                               <MessageSquare className="w-2.5 h-2.5 text-slate-400" />
-                              <span>{t.commentsCount || 2}</span>
+                              <span>{t.commentsCount ?? 0}</span>
                             </span>
 
                             {/* Attachments */}
                             <span className="flex items-center gap-0.5">
                               <Paperclip className="w-2.5 h-2.5 text-slate-400" />
-                              <span>{t.attachmentsCount || 1}</span>
+                              <span>{t.attachmentsCount ?? 0}</span>
                             </span>
                           </div>
 
@@ -1072,7 +1035,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                               src={
                                 t.assignedToAvatar ||
                                 assignee?.avatarUrl ||
-                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                                '/company-logo.png'
                               }
                               alt={t.assignedToName || 'Member'}
                               className="w-5 h-5 rounded-full object-cover border border-slate-300 dark:border-white/20"
@@ -1225,7 +1188,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
             </div>
 
             <div className="space-y-3 overflow-y-auto max-h-[380px] pr-0.5">
-              {activities.map((act) => {
+              {(activities.length?activities:baseTasks.slice(0,4).map(task=>({id:task.id,userName:users.find(u=>u.id===task.assignedById)?.name||'Your manager',userAvatar:'',action:'assigned task',taskTitle:task.title,time:new Date(task.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}),color:'cyan'}))).map((act) => {
                 const getDotColor = () => {
                   switch (act.color) {
                     case 'emerald': return 'bg-emerald-500';
