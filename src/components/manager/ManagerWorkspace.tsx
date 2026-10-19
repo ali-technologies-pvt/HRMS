@@ -3,8 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
-  LayoutDashboard,
-  LucideIcon,
+  LayoutGrid,
   Users,
   BriefcaseBusiness,
   CheckSquare,
@@ -36,7 +35,14 @@ import {
   Sparkles,
   RefreshCw,
   FolderKanban,
-  Radio
+  Radio,
+  Eye,
+  EyeOff,
+  Flame,
+  Award,
+  Star,
+  Check,
+  LucideIcon
 } from 'lucide-react';
 
 import { useTheme } from '@/context/ThemeContext';
@@ -67,22 +73,8 @@ import { BroadcastDesk } from '../superadmin/BroadcastDesk';
 import { CompanySetupDesk } from '../superadmin/CompanySetupDesk';
 import { ChatDesk } from '../chat/ChatDesk';
 
-import { User } from '@/types';
-
-export type ManagerPortalView =
-  | 'dashboard'
-  | 'employees'
-  | 'projects'
-  | 'tasks'
-  | 'live_team'
-  | 'attendance'
-  | 'approvals'
-  | 'eod_reports'
-  | 'leave_mgmt'
-  | 'payroll'
-  | 'broadcasts'
-  | 'team_chat'
-  | 'company_setup';
+export type V14PillTab = 'Overview' | 'Activity' | 'Manage' | 'Program' | 'Projects' | 'Reports';
+export type V14DockTab = 'overview' | 'tasks' | 'telemetry' | 'messages' | 'people' | 'settings';
 
 export function ManagerWorkspace() {
   const { currentUser, users, logout, updateUserStatus } = useAuth();
@@ -103,16 +95,35 @@ export function ManagerWorkspace() {
   const { totalUnreadChatCount } = useChat();
   const reduced = useReducedMotion();
 
-  // Navigation State
-  const [view, setView] = useState<ManagerPortalView>('dashboard');
-  const [mobile, setMobile] = useState(false);
-  const [profile, setProfile] = useState(false);
-  const [inbox, setInbox] = useState(false);
-  const [exitClearance, setExitClearance] = useState(false);
-  const [query, setQuery] = useState('');
-  const [photoFailed, setPhotoFailed] = useState(false);
+  // Startup Loading Animation State (Simulates V14 Shimmer Transition from Video)
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 700);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // Modals State
+  // Navigation State
+  const [activePill, setActivePill] = useState<V14PillTab>('Overview');
+  const [activeDock, setActiveDock] = useState<V14DockTab>('overview');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [exitClearanceOpen, setExitClearanceOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [showSensitiveValues, setShowSensitiveValues] = useState(true);
+
+  // Animated Points Counter for Program View (from Video Frame 00:04: 11,641 -> 12,480)
+  const [programPoints, setProgramPoints] = useState(11641);
+  useEffect(() => {
+    if (activePill === 'Program') {
+      const interval = setInterval(() => {
+        setProgramPoints(prev => (prev < 12480 ? Math.min(12480, prev + 84) : 12480));
+      }, 30);
+      return () => clearInterval(interval);
+    }
+  }, [activePill]);
+
+  // Modals
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -120,21 +131,17 @@ export function ManagerWorkspace() {
   // Filter States
   const [memberDeptFilter, setMemberDeptFilter] = useState('all');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
-  const [projectStatusFilter, setProjectStatusFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
 
-  const closeProfile = useCallback(() => setProfile(false), []);
-  const sidebarRef = useRef<HTMLElement>(null);
+  const closeProfile = useCallback(() => setProfileOpen(false), []);
   const dialogRef = useRef<HTMLElement>(null);
-
-  const isManagerHr = currentUser.role === 'manager_hr';
-  const isHrOnly = currentUser.role === 'hr';
 
   const staff = useMemo(() => users.filter(u => u.role !== 'super_admin'), [users]);
   const activeStaff = useMemo(() => staff.filter(u => u.status === 'online'), [staff]);
   const pendingRequests = useMemo(() => requests.filter(r => r.status === 'pending'), [requests]);
   const activeProjects = useMemo(() => projects.filter(p => p.status === 'active'), [projects]);
   const openTasks = useMemo(() => tasks.filter(t => t.status !== 'completed'), [tasks]);
-  const urgentTasks = useMemo(() => openTasks.filter(t => t.priority === 'urgent'), [openTasks]);
+  const completedTasks = useMemo(() => tasks.filter(t => t.status === 'completed'), [tasks]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const myRecord = getUserTodayAttendance(currentUser.id);
@@ -169,86 +176,82 @@ export function ManagerWorkspace() {
     [notifications, currentUser.id]
   );
 
-  // Navigation Items
-  const navigation = useMemo(() => {
-    const list: { id: ManagerPortalView; label: string; icon: LucideIcon; badge?: number }[] = [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'employees', label: 'Team & People', icon: Users, badge: staff.length },
-      { id: 'projects', label: 'Projects', icon: BriefcaseBusiness, badge: activeProjects.length },
-      { id: 'tasks', label: 'Tasks Board', icon: CheckSquare, badge: openTasks.length },
-      { id: 'live_team', label: 'Live Telemetry', icon: Activity, badge: activeStaff.length },
-      { id: 'attendance', label: 'Attendance', icon: CalendarDays },
-      { id: 'approvals', label: 'Approvals', icon: FileText, badge: pendingRequests.length },
-      { id: 'eod_reports', label: 'EOD Reports', icon: FileText },
-      { id: 'broadcasts', label: 'Noticeboard', icon: Megaphone },
-      { id: 'team_chat', label: 'Team Chat', icon: MessageSquare, badge: totalUnreadChatCount }
-    ];
+  // Total calculated budget
+  const totalBudget = useMemo(() => {
+    return projects.reduce((acc, p) => acc + (p.budget || 250000), 0);
+  }, [projects]);
 
-    if (isManagerHr || isHrOnly) {
-      list.push({ id: 'leave_mgmt', label: 'Leave Quotas', icon: Users });
-      list.push({ id: 'payroll', label: 'Payroll & Slips', icon: Wallet });
-    }
+  // Greeting based on time of day
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
 
-    list.push({ id: 'company_setup', label: 'Office Policies', icon: Settings2 });
-    return list;
-  }, [staff.length, activeProjects.length, openTasks.length, activeStaff.length, pendingRequests.length, totalUnreadChatCount, isManagerHr, isHrOnly]);
+  // Top Center Pills
+  const PILL_TABS: V14PillTab[] = ['Overview', 'Activity', 'Manage', 'Program', 'Projects', 'Reports'];
 
-  const navigate = (id: ManagerPortalView) => {
-    setView(id);
-    setMobile(false);
-    setQuery('');
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
+  // Left Dock Navigation
+  const DOCK_ITEMS: { id: V14DockTab; label: string; icon: LucideIcon; badge?: number }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutGrid },
+    { id: 'tasks', label: 'Tasks Board', icon: CheckSquare, badge: openTasks.length },
+    { id: 'telemetry', label: 'Live Telemetry', icon: Activity, badge: activeStaff.length },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: totalUnreadChatCount },
+    { id: 'people', label: 'Team Directory', icon: Users, badge: staff.length },
+    { id: 'settings', label: 'Office Setup', icon: Settings2 }
+  ];
+
+  // Global Search
+  const searchResults = useMemo(() => {
+    if (!globalSearchQuery.trim()) return [];
+    const q = globalSearchQuery.toLowerCase();
+
+    const pillHits = PILL_TABS.filter(t => t.toLowerCase().includes(q)).map(t => ({
+      label: `Switch to ${t}`,
+      action: () => {
+        setActivePill(t);
+        setActiveDock('overview');
+      }
+    }));
+
+    const memberHits = staff
+      .filter(u => u.name.toLowerCase().includes(q) || u.department.toLowerCase().includes(q))
+      .slice(0, 3)
+      .map(u => ({
+        label: `Staff: ${u.name} (${u.department})`,
+        action: () => {
+          setActivePill('Manage');
+          setActiveDock('people');
+        }
+      }));
+
+    const projectHits = projects
+      .filter(p => p.name.toLowerCase().includes(q) || p.client.toLowerCase().includes(q))
+      .slice(0, 3)
+      .map(p => ({
+        label: `Project: ${p.name}`,
+        action: () => {
+          setActivePill('Projects');
+          setActiveDock('overview');
+        }
+      }));
+
+    return [...pillHits, ...memberHits, ...projectHits].slice(0, 6);
+  }, [globalSearchQuery, staff, projects]);
 
   const handleSignOutRequest = () => {
     const hasActiveShift = myRecord?.clockIn && !myRecord.clockOut;
     const hasPendingReview = pendingRequests.length > 0;
     if (hasActiveShift || hasPendingReview) {
-      setExitClearance(true);
+      setExitClearanceOpen(true);
       return;
     }
     updateUserStatus('offline');
     logout();
   };
 
-  const avatar = (
-    <span className="ep-avatar">
-      {currentUser.avatarUrl && !photoFailed ? (
-        <img src={currentUser.avatarUrl} alt={currentUser.name} onError={() => setPhotoFailed(true)} />
-      ) : (
-        currentUser.name.split(' ').map(n => n[0]).slice(0, 2).join('')
-      )}
-    </span>
-  );
-
-  // Live Global Search Results
-  const searchResults = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    const navHits = navigation
-      .filter(item => item.label.toLowerCase().includes(q))
-      .map(item => ({ id: item.id, label: `Go to: ${item.label}`, type: 'nav' }));
-
-    const memberHits = staff
-      .filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.department.toLowerCase().includes(q))
-      .slice(0, 4)
-      .map(u => ({ id: 'employees' as ManagerPortalView, label: `Team: ${u.name} (${u.department})`, type: 'user' }));
-
-    const projectHits = projects
-      .filter(p => p.name.toLowerCase().includes(q) || p.client.toLowerCase().includes(q))
-      .slice(0, 3)
-      .map(p => ({ id: 'projects' as ManagerPortalView, label: `Project: ${p.name} - ${p.client}`, type: 'project' }));
-
-    const taskHits = tasks
-      .filter(t => t.title.toLowerCase().includes(q))
-      .slice(0, 3)
-      .map(t => ({ id: 'tasks' as ManagerPortalView, label: `Task: ${t.title}`, type: 'task' }));
-
-    return [...navHits, ...memberHits, ...projectHits, ...taskHits].slice(0, 7);
-  }, [query, navigation, staff, projects, tasks]);
-
-  // CSV Report Generator
-  const exportManagerReport = () => {
+  const handleExportCSV = () => {
     const escape = (val: unknown) => `"${(/^[=+\-@]/.test(String(val ?? '')) ? "'" : '') + String(val ?? '').replaceAll('"', '""')}"`;
     const rows = [
       ['Project Name', 'Client', 'Department', 'Status', 'Tasks Total', 'Completed', 'Deadline'],
@@ -265,372 +268,437 @@ export function ManagerWorkspace() {
     );
     const a = document.createElement('a');
     a.href = url;
-    a.download = `quickslogx-manager-report-${todayStr}.csv`;
+    a.download = `quickslogx-v14-report-${todayStr}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // Render Sub-Views
-  const renderViewContent = () => {
-    switch (view) {
-      case 'dashboard':
-        return renderDashboardOverview();
-      case 'employees':
-        return renderEmployeesDirectory();
-      case 'projects':
-        return renderProjectsDesk();
-      case 'tasks':
-        return <TaskAllocationDesk />;
-      case 'live_team':
+  // Re-trigger skeleton shimmer simulation
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setTimeout(() => setIsLoading(false), 550);
+  };
+
+  // =========================================================
+  // RENDER MAIN VIEW
+  // =========================================================
+  const renderMainContent = () => {
+    // 1. In-App Chat Desk (From Video Frame 00:02)
+    if (activeDock === 'messages') {
+      return (
+        <div className="v14-chat-pane">
+          <ChatDesk />
+        </div>
+      );
+    }
+
+    // 2. Tasks Board Dock Selection
+    if (activeDock === 'tasks') {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Sprint Kanban & Tasks Allocation</h2>
+            <button className="v14-pill-btn-dark" onClick={() => setShowTaskModal(true)}>
+              <Plus size={14} /> Assign Task
+            </button>
+          </div>
+          <TaskAllocationDesk />
+        </div>
+      );
+    }
+
+    // 3. Live Telemetry Dock Selection
+    if (activeDock === 'telemetry') {
+      return <TeamLiveMonitor />;
+    }
+
+    // 4. Office Settings Dock Selection
+    if (activeDock === 'settings') {
+      return <CompanySetupDesk key="policies" initialTab="policies" compactHeader />;
+    }
+
+    // 5. Team Directory Dock Selection
+    if (activeDock === 'people') {
+      return renderTeamDirectoryView();
+    }
+
+    // Top Center Pill Views
+    switch (activePill) {
+      case 'Overview':
+        return renderV14Overview();
+      case 'Activity':
         return <TeamLiveMonitor />;
-      case 'attendance':
-        return <AttendanceDesk compactHeader />;
-      case 'approvals':
-        return <RequestsApprovalDesk />;
-      case 'eod_reports':
+      case 'Manage':
+        return renderTeamDirectoryView();
+      case 'Program':
+        return renderV14ProgramRewardsView();
+      case 'Projects':
+        return renderProjectsPortfolioView();
+      case 'Reports':
         return <EODReportsDesk />;
-      case 'leave_mgmt':
-        return <LeaveManagementDesk />;
-      case 'payroll':
-        return <PayrollDesk />;
-      case 'broadcasts':
-        return <BroadcastDesk />;
-      case 'team_chat':
-        return <ChatDesk />;
-      case 'company_setup':
-        return <CompanySetupDesk key="policies" initialTab="policies" compactHeader />;
       default:
-        return renderDashboardOverview();
+        return renderV14Overview();
     }
   };
 
-  // 1. Dashboard Overview Content
-  const renderDashboardOverview = () => {
-    const metricCards = [
-      {
-        title: 'Team Directory',
-        value: staff.length,
-        unit: 'people',
-        caption: `${activeStaff.length} active online now`,
-        icon: Users,
-        target: 'employees' as ManagerPortalView
-      },
-      {
-        title: 'Attendance Today',
-        value: `${attendanceRate}%`,
-        unit: `${presentCount}/${staff.length}`,
-        caption: `${onTimeCount} on-time arrivals recorded`,
-        icon: CalendarCheck,
-        target: 'attendance' as ManagerPortalView
-      },
-      {
-        title: 'Active Projects',
-        value: activeProjects.length,
-        unit: 'in flight',
-        caption: `${projects.length} total across squads`,
-        icon: BriefcaseBusiness,
-        target: 'projects' as ManagerPortalView
-      },
-      {
-        title: 'Open Tasks',
-        value: openTasks.length,
-        unit: 'backlog',
-        caption: `${urgentTasks.length} marked urgent priority`,
-        icon: CheckSquare,
-        target: 'tasks' as ManagerPortalView
-      },
-      {
-        title: 'Pending Requests',
-        value: pendingRequests.length,
-        unit: 'awaiting',
-        caption: `${pendingRequests.filter(r => r.type === 'leave').length} leave · ${pendingRequests.filter(r => r.type === 'wfh').length} WFH`,
-        icon: FileText,
-        target: 'approvals' as ManagerPortalView
-      },
-      {
-        title: 'EOD Submissions',
-        value: reports.filter(r => r.date === todayStr).length,
-        unit: 'submitted',
-        caption: 'Daily reports reviewed today',
-        icon: Clock3,
-        target: 'eod_reports' as ManagerPortalView
-      }
-    ];
+  // =========================================================
+  // 1. V14 SIGNATURE OVERVIEW (FRAME 00:01)
+  // =========================================================
+  const renderV14Overview = () => {
+    if (isLoading) {
+      return (
+        <div className="space-y-6">
+          {/* Skeleton Top Greeting */}
+          <div className="v14-skeleton h-12 w-80 rounded-xl" />
+
+          {/* Skeleton 4 Cards Grid */}
+          <div className="v14-cards-grid">
+            <div className="v14-skeleton v14-skeleton-card" />
+            <div className="v14-skeleton v14-skeleton-card bg-orange-100 dark:bg-orange-950/20" />
+            <div className="v14-skeleton v14-skeleton-card" />
+            <div className="v14-skeleton v14-skeleton-card" />
+          </div>
+
+          {/* Skeleton Middle Row */}
+          <div className="v14-layout-row">
+            <div className="v14-skeleton h-80 rounded-2xl" />
+            <div className="v14-skeleton h-80 rounded-2xl" />
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className="space-y-6">
-        {/* Manager Shift Strip */}
-        <div className="ep-shift">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="space-y-6"
+      >
+        {/* Top Greeting Header */}
+        <div className="v14-greeting-row">
           <div>
-            <span className={`ep-shift-dot ${myRecord?.clockIn && !myRecord.clockOut ? 'is-active' : ''}`} />
-            <strong>
-              {myRecord?.clockOut
-                ? 'Your shift is completed for today'
-                : myRecord?.clockIn
-                ? `You're clocked in (started at ${myRecord.clockIn})`
-                : 'Manager Shift: Ready to punch in?'}
-            </strong>
-            <span>
-              Office hours: {policy.officeStartTime}–{policy.officeEndTime} · {policy.gracePeriodMinutes}m grace
-            </span>
+            <h1>
+              {greeting}, {currentUser.name.split(' ')[0]} 👋
+            </h1>
+            <p>Here is what is happening across your team, deliverables, and projects today.</p>
           </div>
-          <button
-            className={myRecord?.clockIn ? 'ep-button ep-secondary' : 'ep-button'}
-            disabled={!!myRecord?.clockOut}
-            onClick={() => (myRecord?.clockIn ? clockOut(currentUser.id) : clockIn(currentUser.id))}
-          >
-            {myRecord?.clockOut ? 'Shift Done' : myRecord?.clockIn ? 'Punch Out' : 'Punch In'}
-          </button>
+
+          {/* Action Buttons */}
+          <div className="mp-hero-actions">
+            <button className="mp-btn-primary" onClick={() => setShowRegisterModal(true)}>
+              <UserPlus size={14} /> Register Employee
+            </button>
+            <button className="mp-btn-primary mp-btn-gold" onClick={() => setShowProjectModal(true)}>
+              <BriefcaseBusiness size={14} /> New Project
+            </button>
+            <button className="mp-btn-secondary" onClick={() => setShowTaskModal(true)}>
+              <CheckSquare size={14} /> Assign Task
+            </button>
+            <button className="v14-icon-btn" title="Refresh data & animation" onClick={handleRefresh}>
+              <RefreshCw size={15} />
+            </button>
+          </div>
         </div>
 
-        {/* 6 Key Metrics Cards */}
-        <section className="ep-metrics" aria-label="Management key indicators">
-          {metricCards.map((card, idx) => {
-            const Icon = card.icon;
-            return (
-              <motion.button
-                key={card.title}
-                className="ep-metric"
-                onClick={() => navigate(card.target)}
-                initial={{ opacity: 0, y: reduced ? 0 : 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: reduced ? 0 : 0.25, delay: reduced ? 0 : idx * 0.03 }}
+        {/* Top 4 Cards Grid (Matching Frame 00:01) */}
+        <div className="v14-cards-grid">
+          {/* Card 1: Main Balance / Project Value Card */}
+          <motion.div whileHover={{ y: -4 }} className="v14-card">
+            <div className="v14-card-head">
+              <span className="v14-card-label">Total Portfolio Budget</span>
+              <button
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                onClick={() => setShowSensitiveValues(!showSensitiveValues)}
+                title="Toggle budget visibility"
               >
-                <span className="ep-metric-icon">
-                  <Icon size={19} />
-                </span>
-                <span className="ep-metric-label">{card.title}</span>
-                <span className="ep-metric-value">
-                  {card.value}
-                  {card.unit && <small className="text-xs ml-1 font-normal text-slate-500">{card.unit}</small>}
-                </span>
-                <span className="ep-metric-caption">
-                  {card.caption}
-                  <ArrowRight size={11} />
-                </span>
-              </motion.button>
-            );
-          })}
-        </section>
+                {showSensitiveValues ? <Eye size={15} /> : <EyeOff size={15} />}
+              </button>
+            </div>
 
-        {/* Quick Operations Row */}
-        <section className="ep-quick">
-          <h2>Quick Actions & Operations</h2>
-          <div>
-            <button className="ep-card" onClick={() => setShowRegisterModal(true)}>
-              <span className="flex items-center gap-2">
-                <UserPlus size={16} className="text-[#244c78]" />
-                <strong>Register Employee</strong>
+            <div className="v14-card-number">
+              {showSensitiveValues ? `$${totalBudget.toLocaleString()}` : '••••••••'}
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 inline-flex items-center gap-0.5">
+                <ArrowUpRight size={12} /> +12.4%
               </span>
-              <ArrowRight size={13} />
-            </button>
-            <button className="ep-card" onClick={() => setShowProjectModal(true)}>
-              <span className="flex items-center gap-2">
-                <BriefcaseBusiness size={16} className="text-[#244c78]" />
-                <strong>New Project</strong>
-              </span>
-              <ArrowRight size={13} />
-            </button>
-            <button className="ep-card" onClick={() => setShowTaskModal(true)}>
-              <span className="flex items-center gap-2">
-                <CheckSquare size={16} className="text-[#244c78]" />
-                <strong>Assign Task</strong>
-              </span>
-              <ArrowRight size={13} />
-            </button>
-            <button className="ep-card" onClick={() => navigate('approvals')}>
-              <span className="flex items-center gap-2">
-                <FileText size={16} className="text-[#244c78]" />
-                <strong>Approvals Queue ({pendingRequests.length})</strong>
-              </span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        </section>
+            </div>
 
-        {/* Analytics & Spotlight Grid */}
-        <div className="ep-graphs">
-          {/* Team Attendance Consistency Chart */}
-          <section className="ep-card">
-            <header>
-              <h2>
-                Team Attendance <span>· Today</span>
-              </h2>
-              <button onClick={() => navigate('attendance')}>View Attendance Logs</button>
-            </header>
-            <div className="ep-attendance-chart">
-              <div
-                className="ep-donut"
-                role="img"
-                aria-label={`Attendance rate ${attendanceRate}%`}
-                style={{
-                  background:
-                    staff.length > 0
-                      ? `conic-gradient(#244c78 0% ${attendanceRate}%, #e8ac32 ${attendanceRate}% ${Math.min(
-                          100,
-                          attendanceRate + (todayAttendance.filter(a => a.isLate).length / staff.length) * 100
-                        )}%, #dce5f0 ${Math.min(
-                          100,
-                          attendanceRate + (todayAttendance.filter(a => a.isLate).length / staff.length) * 100
-                        )}% 100%)`
-                      : '#e7edf5'
-                }}
-              >
-                <div>
-                  <strong>{attendanceRate}%</strong>
-                  <span>ARRIVED</span>
+            <div className="v14-pill-actions">
+              <button className="v14-pill-btn-dark" onClick={() => setShowProjectModal(true)}>
+                <Plus size={12} /> New Project
+              </button>
+              <button className="v14-pill-btn-light" onClick={() => setShowTaskModal(true)}>
+                Assign Task
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Card 2: The Signature Coral/Orange Gradient Card */}
+          <motion.div whileHover={{ y: -4 }} className="v14-card v14-card-coral">
+            <div className="v14-card-head">
+              <span className="v14-card-label">Sprint Output</span>
+              <span className="v14-card-coral-badge">
+                <Sparkles size={11} /> +18.2%
+              </span>
+            </div>
+
+            <div className="v14-card-number">
+              849 <small className="text-white/80">tasks</small>
+            </div>
+
+            <p className="text-xs text-white/80 m-0">
+              {completedTasks.length} sprint deliverables closed this cycle
+            </p>
+          </motion.div>
+
+          {/* Card 3: Team Attendance Today */}
+          <motion.div whileHover={{ y: -4 }} className="v14-card">
+            <div className="v14-card-head">
+              <span className="v14-card-label">Team Presence</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+                {attendanceRate}% rate
+              </span>
+            </div>
+
+            <div className="v14-card-number">
+              {presentCount} <small>/ {staff.length} staff</small>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+              <span>{onTimeCount} on time</span>
+              <span className="text-amber-600">{todayAttendance.filter(a => a.isLate).length} late</span>
+            </div>
+          </motion.div>
+
+          {/* Card 4: Weekly Output Mini Bar Chart Card */}
+          <motion.div whileHover={{ y: -4 }} className="v14-card">
+            <div className="v14-card-head">
+              <span className="v14-card-label">Activity Trend</span>
+              <span className="text-[11px] font-semibold text-slate-500">7 days</span>
+            </div>
+
+            <div className="v14-mini-bars">
+              {[45, 60, 75, 40, 90, 80, 95].map((val, idx) => (
+                <div key={idx} className={`v14-mini-bar-col ${idx === 4 ? 'is-highlight' : ''}`}>
+                  <div className="v14-mini-bar-fill" style={{ height: `${val}%` }} />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-between text-[10px] text-slate-400 font-medium pt-1">
+              <span>Mon</span>
+              <span>Wed</span>
+              <span>Today</span>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Middle Layout Row: Monthly Capacity & Recent Activities Table */}
+        <div className="v14-layout-row">
+          {/* Left: Monthly Spending & Allocation Gauge */}
+          <div className="v14-table-card flex flex-col justify-between">
+            <div>
+              <div className="v14-table-header">
+                <h3>Monthly Squad Capacity</h3>
+                <span className="text-xs text-slate-400 font-semibold">{openTasks.length} active tasks</span>
+              </div>
+
+              {/* Capacity Donut / Progress */}
+              <div className="flex flex-col items-center justify-center my-4">
+                <div className="relative w-36 h-36 rounded-full flex items-center justify-center bg-slate-50 dark:bg-slate-800/50 border-8 border-slate-100 dark:border-slate-800">
+                  <div className="text-center">
+                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">78%</span>
+                    <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Allocated</span>
+                  </div>
                 </div>
               </div>
-              <div className="ep-legend">
-                {[
-                  { label: 'Present / On Time', n: onTimeCount, color: '#244c78' },
-                  { label: 'Late Arrival', n: todayAttendance.filter(a => a.isLate).length, color: '#e8ac32' },
-                  { label: 'Not Yet Arrived / Absent', n: Math.max(0, staff.length - presentCount), color: '#a8bbd3' }
-                ].map(item => (
-                  <div key={item.label}>
-                    <i style={{ background: item.color }} />
-                    <span>{item.label}</span>
-                    <strong>{item.n}</strong>
-                  </div>
-                ))}
+
+              <div className="space-y-2 mt-4 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span>Engineering Squad</span>
+                  <span className="font-semibold">62% load</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-[#244c78] h-full rounded-full" style={{ width: '62%' }} />
+                </div>
+
+                <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-2">
+                  <span>Product & Design</span>
+                  <span className="font-semibold">84% load</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-[#ea3822] h-full rounded-full" style={{ width: '84%' }} />
+                </div>
               </div>
             </div>
-            <p className="ep-chart-note">
-              {presentCount} of {staff.length} staff checked in today. Excuses and WFH approvals update these records automatically.
-            </p>
-          </section>
 
-          {/* Pending Requests Spotlight */}
-          <section className="ep-card">
-            <header>
-              <h2>
-                Requests Awaiting Decision <span>· Pending</span>
-              </h2>
-              <button onClick={() => navigate('approvals')}>Open Queue</button>
-            </header>
-            <div className="p-5 flex flex-col justify-between h-[210px]">
-              <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-700 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900 font-bold">
-                  {pendingRequests.length} PENDING DECISIONS
-                </span>
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-2">
-                  Every request deserves a timely response.
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                  Staff leave requests, medical absences, and work-from-home applications are queued for manager review.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  {pendingRequests.filter(r => r.type === 'leave').length} Leave · {pendingRequests.filter(r => r.type === 'wfh').length} WFH · {pendingRequests.filter(r => r.type === 'late_excuse' || r.type === 'absence_excuse').length} Excuses
-                </span>
-                <button className="ep-button" onClick={() => navigate('approvals')}>
-                  Review Now <ArrowRight size={13} />
-                </button>
-              </div>
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+              <span className="text-slate-500">Need to balance workload?</span>
+              <button
+                className="text-[#ea3822] font-semibold hover:underline flex items-center gap-1"
+                onClick={() => setActiveDock('tasks')}
+              >
+                Reassign Tasks <ArrowRight size={12} />
+              </button>
             </div>
-          </section>
-        </div>
+          </div>
 
-        {/* Bottom Layout: Active Projects & Recent Tasks */}
-        <div className="ep-bottom-layout">
-          {/* Left: Active Projects Portfolio */}
-          <aside className="ep-card ep-recent">
-            <header>
-              <h2>Active Project Portfolio</h2>
-              <button onClick={() => navigate('projects')}>View All</button>
-            </header>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {activeProjects.slice(0, 4).map(proj => {
-                const projTasks = tasks.filter(t => t.projectId === proj.id);
-                const comp = projTasks.filter(t => t.status === 'completed').length;
-                const percent = projTasks.length ? Math.round((comp / projTasks.length) * 100) : 0;
-
-                return (
-                  <article key={proj.id} className="p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                    <div className="flex items-start justify-between gap-2">
-                      <strong className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {proj.name}
-                      </strong>
-                      <span className="text-[10px] font-mono text-slate-400 font-semibold">{percent}%</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 my-1">
-                      Client: {proj.client} · {proj.department || 'General'}
-                    </p>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
-                      <div className="bg-[#244c78] h-full rounded-full" style={{ width: `${percent}%` }} />
-                    </div>
-                  </article>
-                );
-              })}
-              {!activeProjects.length && (
-                <p className="ep-empty">No active projects. Click "+ New Project" to get started.</p>
-              )}
+          {/* Right: Recent Activities / Deliverables Table (From Video Frame 00:01) */}
+          <div className="v14-table-card">
+            <div className="v14-table-header">
+              <h3>Recent Deliverables & Activities</h3>
+              <button onClick={() => setActiveDock('tasks')}>
+                View All <ArrowUpRight size={14} />
+              </button>
             </div>
-          </aside>
 
-          {/* Right: Urgent & High Priority Tasks Peek */}
-          <div>
-            <section className="ep-card ep-attendance-table">
-              <header>
-                <h2>
-                  Sprint Deliverables & Tasks <span>· In Progress / Open</span>
-                </h2>
-                <button onClick={() => navigate('tasks')}>Open Board</button>
-              </header>
-              <div className="ep-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>TASK / DELIVERABLE</th>
-                      <th>PROJECT</th>
-                      <th>ASSIGNEE</th>
-                      <th>PRIORITY</th>
-                      <th>STATUS</th>
+            <div className="overflow-x-auto">
+              <table className="v14-table">
+                <thead>
+                  <tr>
+                    <th>NAME / TASK</th>
+                    <th>PROJECT</th>
+                    <th>ASSIGNEE</th>
+                    <th>DUE DATE</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openTasks.slice(0, 5).map(task => (
+                    <tr key={task.id}>
+                      <td>
+                        <strong className="font-semibold text-slate-800 dark:text-slate-200">{task.title}</strong>
+                      </td>
+                      <td>
+                        <span className="text-slate-500 text-xs">{task.projectName || 'General'}</span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 text-[10px] font-bold flex items-center justify-center">
+                            {(task.assignedToName || 'U').charAt(0)}
+                          </span>
+                          <span className="text-xs">{task.assignedToName || 'Unassigned'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="text-xs text-slate-500">{task.deadline}</span>
+                      </td>
+                      <td>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            task.status === 'completed'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : task.status === 'in_progress'
+                              ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
+                              : task.priority === 'urgent'
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {task.status.replace('_', ' ')}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {openTasks.slice(0, 6).map(t => (
-                      <tr key={t.id}>
-                        <td>
-                          <strong className="text-xs text-slate-800 dark:text-slate-200">{t.title}</strong>
-                        </td>
-                        <td>{t.projectName || 'General'}</td>
-                        <td>{t.assignedToName || 'Unassigned'}</td>
-                        <td>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                              t.priority === 'urgent'
-                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-                                : t.priority === 'high'
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="capitalize text-slate-500 font-medium text-xs">
-                            {t.status.replace('_', ' ')}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!openTasks.length && <p className="ep-empty">Task backlog is clear. No pending deliverables.</p>}
-              </div>
-            </section>
+                  ))}
+                  {!openTasks.length && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-slate-400">
+                        No recent task activities. Click "+ Assign Task" to create one.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
-  // 2. Team & Employees Directory Desk
-  const renderEmployeesDirectory = () => {
+  // =========================================================
+  // 2. V14 REWARDS / PROGRAM VIEW (FRAMES 00:03 - 00:05)
+  // =========================================================
+  const renderV14ProgramRewardsView = () => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="space-y-6"
+      >
+        <div className="v14-greeting-row">
+          <div>
+            <h1>Performance & Rewards Program</h1>
+            <p>Team recognition milestones, deliverable bounties, and leadership benefits.</p>
+          </div>
+        </div>
+
+        {/* Big Orange/Coral Program Hero Card (Matching Frame 00:04) */}
+        <div className="v14-program-grid">
+          <div className="v14-program-hero">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-white/90 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm inline-flex items-center gap-1.5">
+                  <Star size={13} /> Elite Tier Leadership
+                </span>
+                <span className="text-xs text-white/80">Active Season Q4</span>
+              </div>
+
+              <div className="v14-program-score">
+                {programPoints.toLocaleString()} <small>points</small>
+              </div>
+
+              <p className="text-xs text-white/90 max-w-md">
+                Earned via on-time sprint completions, high customer feedback scores, and zero critical deployment bugs.
+              </p>
+            </div>
+
+            <div className="pt-4 border-t border-white/20 flex items-center justify-between text-xs text-white/90">
+              <span>Next Reward Tier: Diamond (15,000 pts)</span>
+              <span className="font-bold">83% completed</span>
+            </div>
+          </div>
+
+          {/* Tier Benefits Checklist */}
+          <div className="v14-table-card flex flex-col justify-between">
+            <div>
+              <div className="v14-table-header">
+                <h3>Tier Benefits & Perks</h3>
+              </div>
+              <ul className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-emerald-500 flex-shrink-0" />
+                  <span>24/7 Priority Squad Resource Allocation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-emerald-500 flex-shrink-0" />
+                  <span>Executive Cloud Sandbox & GPU Budget</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-emerald-500 flex-shrink-0" />
+                  <span>Direct Annual Bonus Multiplier (1.25x)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-emerald-500 flex-shrink-0" />
+                  <span>Flexible WFH & Remote Stipend Quota</span>
+                </li>
+              </ul>
+            </div>
+
+            <button className="v14-pill-btn-dark w-full justify-center mt-4">
+              Explore Reward Marketplace
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // =========================================================
+  // 3. TEAM DIRECTORY / MANAGE VIEW
+  // =========================================================
+  const renderTeamDirectoryView = () => {
     const departments = Array.from(new Set(staff.map(u => u.department || 'General')));
     const filteredStaff = staff.filter(u => {
       const matchDept = memberDeptFilter === 'all' || u.department === memberDeptFilter;
@@ -643,15 +711,27 @@ export function ManagerWorkspace() {
     });
 
     return (
-      <div className="space-y-5">
-        {/* Controls Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#142338] p-4 rounded-xl border border-[#dce5f0] dark:border-[#30445f]">
+      <div className="space-y-6">
+        <div className="v14-greeting-row">
+          <div>
+            <h1>Team & Employees Directory</h1>
+            <p>Manage staff accounts, department roles, and track active statuses.</p>
+          </div>
+
+          <div className="mp-hero-actions">
+            <button className="mp-btn-primary" onClick={() => setShowRegisterModal(true)}>
+              <UserPlus size={14} /> Register Employee
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#131924] p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3 flex-1 min-w-[240px]">
-            <div className="ep-search w-full max-w-sm">
-              <Search size={16} />
+            <div className="v14-search-pill w-full max-w-sm">
+              <Search size={15} />
               <input
-                aria-label="Search employees"
-                placeholder="Search staff by name, email, or designation..."
+                placeholder="Search staff by name, email, or role..."
                 value={memberSearchQuery}
                 onChange={e => setMemberSearchQuery(e.target.value)}
               />
@@ -670,211 +750,147 @@ export function ManagerWorkspace() {
               ))}
             </select>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button className="mp-btn-primary" onClick={() => setShowRegisterModal(true)}>
-              <UserPlus size={15} /> Register Employee
-            </button>
-          </div>
         </div>
 
-        {/* Staff Cards Grid */}
-        <div className="mp-team-grid">
+        {/* Staff Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredStaff.map(member => {
             const memberTasks = tasks.filter(t => t.assignedToId === member.id);
-            const memberOpenTasks = memberTasks.filter(t => t.status !== 'completed');
+            const openCount = memberTasks.filter(t => t.status !== 'completed').length;
 
             return (
-              <div key={member.id} className="mp-member-card">
-                <div className="mp-member-header">
-                  <span className="ep-avatar">
-                    {member.avatarUrl ? (
-                      <img src={member.avatarUrl} alt={member.name} />
-                    ) : (
-                      member.name.split(' ').map(n => n[0]).slice(0, 2).join('')
-                    )}
-                  </span>
-                  <div className="mp-member-info">
-                    <strong>{member.name}</strong>
-                    <span>{member.designation || member.role.replace('_', ' ')}</span>
+              <motion.div whileHover={{ y: -3 }} key={member.id} className="v14-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                      {member.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                    </span>
+                    <div>
+                      <strong className="block text-sm font-bold text-slate-900 dark:text-white">
+                        {member.name}
+                      </strong>
+                      <span className="text-xs text-slate-500">{member.designation || member.role}</span>
+                    </div>
                   </div>
+
                   <span
-                    className={`mp-status-indicator mp-status-${
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
                       member.status === 'online'
-                        ? 'online'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                         : member.status === 'break'
-                        ? 'break'
-                        : member.status === 'in_meeting'
-                        ? 'meeting'
-                        : 'offline'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                     }`}
                   >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        member.status === 'online'
-                          ? 'bg-emerald-500'
-                          : member.status === 'break'
-                          ? 'bg-amber-500'
-                          : member.status === 'in_meeting'
-                          ? 'bg-purple-500'
-                          : 'bg-slate-400'
-                      }`}
-                    />
                     {member.status}
                   </span>
                 </div>
 
-                <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                <div className="my-3 space-y-1 text-xs text-slate-500">
                   <div className="flex justify-between">
                     <span>Department:</span>
-                    <strong className="text-slate-700 dark:text-slate-300 font-semibold">{member.department}</strong>
+                    <strong className="text-slate-700 dark:text-slate-300">{member.department}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Official Email:</span>
-                    <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300 truncate max-w-[160px]">
-                      {member.email}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Monthly Salary:</span>
-                    <span>PKR {member.salary?.toLocaleString() || '—'}</span>
+                    <span className="font-mono text-[11px] truncate max-w-[160px]">{member.email}</span>
                   </div>
                 </div>
 
-                <div className="mp-member-meta">
-                  <span>
-                    Tasks: <span className="mp-badge-count">{memberOpenTasks.length} open</span>
-                  </span>
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-semibold">{openCount} active tasks</span>
                   <button
-                    className="text-xs font-semibold text-[#244c78] dark:text-[#b5cce6] hover:underline flex items-center gap-1"
+                    className="text-[#ea3822] font-semibold hover:underline flex items-center gap-1"
                     onClick={() => {
-                      setView('tasks');
+                      setActiveDock('tasks');
                     }}
                   >
                     Assign Task <ArrowRight size={12} />
                   </button>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
-
-        {!filteredStaff.length && (
-          <div className="ep-card p-10 text-center text-slate-500">
-            <Users size={32} className="mx-auto text-slate-400 mb-2" />
-            <p className="font-semibold text-sm">No employees match your search criteria.</p>
-            <button className="mp-btn-primary mt-3" onClick={() => setShowRegisterModal(true)}>
-              <UserPlus size={14} /> Register New Employee
-            </button>
-          </div>
-        )}
       </div>
     );
   };
 
-  // 3. Projects Desk
-  const renderProjectsDesk = () => {
-    const filtered = projects.filter(
-      p => projectStatusFilter === 'all' || p.status === projectStatusFilter
-    );
+  // =========================================================
+  // 4. PROJECTS PORTFOLIO VIEW
+  // =========================================================
+  const renderProjectsPortfolioView = () => {
+    const filtered = projects.filter(p => projectFilter === 'all' || p.status === projectFilter);
 
     return (
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#142338] p-4 rounded-xl border border-[#dce5f0] dark:border-[#30445f]">
-          <div className="flex items-center gap-3">
-            <select
-              className="mp-select max-w-[180px]"
-              value={projectStatusFilter}
-              onChange={e => setProjectStatusFilter(e.target.value)}
-            >
-              <option value="all">All Projects ({projects.length})</option>
-              <option value="active">Active ({activeProjects.length})</option>
-              <option value="on_hold">On Hold</option>
-              <option value="completed">Completed</option>
-              <option value="withdrawn">Withdrawn</option>
-            </select>
+      <div className="space-y-6">
+        <div className="v14-greeting-row">
+          <div>
+            <h1>Project Portfolio & Deliverables</h1>
+            <p>Track team roadmaps, milestone deadlines, and budget allocations.</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button className="mp-btn-secondary" onClick={exportManagerReport}>
+          <div className="mp-hero-actions">
+            <button className="mp-btn-secondary" onClick={handleExportCSV}>
               <ArrowDownToLine size={14} /> Export CSV
             </button>
             <button className="mp-btn-primary" onClick={() => setShowProjectModal(true)}>
-              <BriefcaseBusiness size={15} /> New Project
+              <BriefcaseBusiness size={14} /> New Project
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(project => {
-            const projectTasks = tasks.filter(t => t.projectId === project.id);
-            const comp = projectTasks.filter(t => t.status === 'completed').length;
-            const percent = projectTasks.length ? Math.round((comp / projectTasks.length) * 100) : 0;
-            const assignees = users.filter(u => projectTasks.some(t => t.assignedToId === u.id));
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map(proj => {
+            const pTasks = tasks.filter(t => t.projectId === proj.id);
+            const comp = pTasks.filter(t => t.status === 'completed').length;
+            const percent = pTasks.length ? Math.round((comp / pTasks.length) * 100) : 0;
 
             return (
-              <div key={project.id} className="ep-card p-5 flex flex-col justify-between">
+              <motion.div whileHover={{ y: -3 }} key={proj.id} className="v14-card">
                 <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-mono tracking-wider uppercase font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                      {project.department || 'General'}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-mono tracking-wider uppercase font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
+                      {proj.department || 'General'}
                     </span>
                     <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                        project.status === 'active'
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        proj.status === 'active'
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                          : project.status === 'completed'
-                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
-                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                       }`}
                     >
-                      {project.status.replace('_', ' ')}
+                      {proj.status}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-2">
-                    {project.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">Client: {project.client}</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">{proj.name}</h3>
+                  <p className="text-xs text-slate-500 font-medium">Client: {proj.client}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">
-                    {project.description}
+                    {proj.description}
                   </p>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>Progress ({comp}/{projectTasks.length} tasks)</span>
+                    <span>Deliverables ({comp}/{pTasks.length})</span>
                     <strong className="text-slate-700 dark:text-slate-300">{percent}%</strong>
                   </div>
                   <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#244c78] h-full rounded-full transition-all" style={{ width: `${percent}%` }} />
+                    <div className="bg-[#ea3822] h-full rounded-full transition-all" style={{ width: `${percent}%` }} />
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <div className="flex -space-x-1.5">
-                      {assignees.slice(0, 4).map(u => (
-                        <span
-                          key={u.id}
-                          title={u.name}
-                          className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 text-[9px] font-bold flex items-center justify-center border-2 border-white dark:border-[#142338]"
-                        >
-                          {u.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                        </span>
-                      ))}
-                      {!assignees.length && <span className="text-[11px] text-slate-400">No team assigned</span>}
-                    </div>
-
+                    <span className="text-[11px] text-slate-400">Due: {proj.deadline || 'Ongoing'}</span>
                     <button
-                      className="text-xs font-semibold text-[#244c78] dark:text-[#b5cce6] hover:underline flex items-center gap-1"
-                      onClick={() => {
-                        setView('tasks');
-                      }}
+                      className="text-xs font-semibold text-[#ea3822] hover:underline flex items-center gap-1"
+                      onClick={() => setActiveDock('tasks')}
                     >
-                      Tasks Board <ArrowRight size={12} />
+                      Kanban Board <ArrowRight size={12} />
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -883,220 +899,162 @@ export function ManagerWorkspace() {
   };
 
   return (
-    <div
-      className="atelier atelier-live employee-portal manager-portal"
-      data-theme={theme}
-    >
-      {/* Mobile Scrim */}
-      {mobile && (
-        <button
-          className="ep-scrim"
-          aria-label="Close navigation"
-          onClick={() => setMobile(false)}
-        />
-      )}
+    <div className="v14-dashboard" data-theme={theme}>
+      {/* 1. SLIM LEFT VERTICAL ICON DOCK */}
+      <aside className={`v14-dock ${mobileMenuOpen ? 'is-open' : ''}`}>
+        {/* Top Flame/Q Brand Logo */}
+        <div
+          className="v14-dock-logo"
+          title="quickslogx Portal"
+          onClick={() => {
+            setActivePill('Overview');
+            setActiveDock('overview');
+          }}
+        >
+          Q
+        </div>
 
-      {/* Modern Sidebar (matching EmployeePortal) */}
-      <aside
-        ref={sidebarRef}
-        aria-label="Management navigation panel"
-        className={`ep-sidebar ${mobile ? 'ep-sidebar-open' : ''}`}
-      >
-        <button className="ep-logo" aria-label="Go to dashboard" onClick={() => navigate('dashboard')}>
-          <img src="/company-logo.png" alt="Quickslogix" />
-        </button>
-
-        <span className="ep-portal-label">
-          {isHrOnly ? 'HUMAN RESOURCES PORTAL' : isManagerHr ? 'MANAGEMENT & HR PORTAL' : 'MANAGEMENT PORTAL'}
-        </span>
-
-        <button className="ep-mobile-close" aria-label="Close navigation" onClick={() => setMobile(false)}>
-          <X size={18} />
-        </button>
-
-        <nav aria-label="Management navigation">
-          {navigation.map(({ id, label, icon: Icon, badge }) => (
+        {/* Vertical Icon Stack */}
+        <nav className="v14-dock-nav">
+          {DOCK_ITEMS.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
-              aria-current={view === id ? 'page' : undefined}
-              onClick={() => navigate(id)}
+              className={`v14-dock-btn ${activeDock === id ? 'is-active' : ''}`}
+              title={label}
+              onClick={() => {
+                setActiveDock(id);
+                setMobileMenuOpen(false);
+              }}
             >
-              <Icon size={17} />
-              <span>{label}</span>
-              {badge !== undefined && badge > 0 && <small>{badge > 99 ? '99+' : badge}</small>}
+              <Icon size={19} />
+              {badge !== undefined && badge > 0 && <span className="v14-dock-badge" />}
             </button>
           ))}
         </nav>
 
-        {/* Sidebar Bottom Profile Card */}
-        <div className="ep-sidebar-bottom">
-          <button className="ep-user" onClick={() => setProfile(true)}>
-            {avatar}
-            <span>
-              <strong>{currentUser.name}</strong>
-              <small>{currentUser.designation || currentUser.role.replace('_', ' ')}</small>
-            </span>
+        {/* Dock Bottom Actions */}
+        <div className="v14-dock-bottom">
+          <button
+            className="v14-dock-btn"
+            title={myRecord?.clockIn ? 'Punch Out' : 'Punch In'}
+            onClick={() => (myRecord?.clockIn ? clockOut(currentUser.id) : clockIn(currentUser.id))}
+          >
+            <CalendarDays size={18} />
           </button>
-          <div>
-            <button onClick={handleSignOutRequest}>
-              <LogOut size={14} /> Sign out
-            </button>
-            <button aria-label="Profile settings" onClick={() => setProfile(true)}>
-              <Settings2 size={16} />
-            </button>
-          </div>
+
+          <button className="v14-dock-btn" title="Sign Out" onClick={handleSignOutRequest}>
+            <LogOut size={18} />
+          </button>
         </div>
       </aside>
 
-      {/* Main Body */}
-      <div className="ep-body">
-        {/* Topbar */}
-        <header className="ep-topbar">
-          <button className="ep-menu" aria-label="Open navigation" onClick={() => setMobile(true)}>
-            <Menu size={20} />
-          </button>
-
-          {/* Global Interactive Search */}
-          <div className="ep-search">
-            <Search size={17} />
-            <input
-              aria-label="Search management workspace"
-              placeholder="Search employees, tasks, projects, or desks…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Escape') setQuery('');
-                if (e.key === 'Enter' && searchResults[0]) {
-                  navigate(searchResults[0].id);
-                }
-              }}
-            />
-            {query && (
-              <div className="ep-search-results">
-                {searchResults.length ? (
-                  searchResults.map((result, i) => (
-                    <button key={result.label + i} onClick={() => navigate(result.id)}>
-                      {result.label}
-                    </button>
-                  ))
-                ) : (
-                  <span>No matching employees, projects, or tasks.</span>
-                )}
-              </div>
-            )}
+      {/* 2. MAIN BODY */}
+      <div className="v14-body">
+        {/* Topbar with Center Sliding Pills */}
+        <header className="v14-topbar">
+          {/* Left Brand Title */}
+          <div
+            className="v14-brand-pill"
+            onClick={() => {
+              setActivePill('Overview');
+              setActiveDock('overview');
+            }}
+          >
+            <div className="v14-brand-symbol">Q</div>
+            <span className="v14-brand-name">quickslogx</span>
           </div>
 
-          {/* Topbar Actions */}
-          <div className="ep-header-actions">
-            {/* Shift Clock Button */}
-            <button
-              className="ep-button ep-secondary"
-              disabled={!!myRecord?.clockOut}
-              onClick={() => (myRecord?.clockIn ? clockOut(currentUser.id) : clockIn(currentUser.id))}
-            >
-              <CalendarDays size={14} />
-              <span className="hidden sm:inline">
-                {myRecord?.clockOut ? 'Shift Done' : myRecord?.clockIn ? 'Punch Out' : 'Punch In'}
-              </span>
-            </button>
+          {/* Center Sliding Horizontal Navigation Pills (The V14 Video Signature) */}
+          <nav className="v14-pills-container">
+            {PILL_TABS.map(tab => {
+              const isActive = activePill === tab && activeDock === 'overview';
+              return (
+                <button
+                  key={tab}
+                  className={`v14-pill-item ${isActive ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setActivePill(tab);
+                    setActiveDock('overview');
+                  }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="v14-pill-active"
+                      className="v14-pill-active-bg"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
+                  <span className="v14-pill-text">{tab}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Topbar Right Actions */}
+          <div className="v14-topbar-actions">
+            {/* Search Pill */}
+            <div className="v14-search-pill hidden sm:flex">
+              <Search size={14} />
+              <input
+                placeholder="Search..."
+                value={globalSearchQuery}
+                onChange={e => setGlobalSearchQuery(e.target.value)}
+              />
+              <span className="v14-kbd">⌘K</span>
+            </div>
 
             {/* Theme Toggle */}
-            <button
-              className="ep-notification"
-              aria-label="Toggle theme"
-              onClick={toggleTheme}
-            >
-              {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+            <button className="v14-icon-btn" title="Toggle theme" onClick={toggleTheme}>
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
-            {/* Team Chat Link */}
+            {/* Notification Bell with Coral Dot */}
             <button
-              className="ep-notification"
-              aria-label={`Open team chat, ${totalUnreadChatCount} unread`}
-              onClick={() => navigate('team_chat')}
+              className="v14-icon-btn"
+              title="Notifications"
+              onClick={() => setInboxOpen(true)}
             >
-              <MessageSquare size={17} />
-              {totalUnreadChatCount > 0 && <small>{totalUnreadChatCount}</small>}
+              <Bell size={16} />
+              {unreadNotifications > 0 && <span className="v14-coral-dot" />}
             </button>
 
-            {/* Notifications Drawer Toggle */}
-            <button
-              className="ep-notification"
-              aria-label={`Notifications, ${unreadNotifications} unread`}
-              onClick={() => setInbox(true)}
-            >
-              <Bell size={18} />
-              {unreadNotifications > 0 && <small>{unreadNotifications}</small>}
-            </button>
-
-            {/* User Profile Pill */}
-            <button className="ep-header-user" onClick={() => setProfile(true)}>
-              {avatar}
-              <span>
-                <strong>{currentUser.name}</strong>
-                <small>{currentUser.designation || 'Manager'}</small>
+            {/* User Profile Chip ("Code XR" style) */}
+            <div className="v14-profile-chip" onClick={() => setProfileOpen(true)}>
+              <div className="v14-profile-avatar">
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} />
+                ) : (
+                  currentUser.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                )}
+              </div>
+              <span className="v14-profile-name hidden md:inline">
+                {currentUser.name}
               </span>
-              <ChevronDown size={14} />
-            </button>
+              <ChevronDown size={14} className="text-slate-400" />
+            </div>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="ep-main">
-          {/* Page Heading & Hero Actions */}
-          <div className="ep-page-heading">
-            <div>
-              <h1>
-                {view === 'dashboard'
-                  ? `Welcome back, ${currentUser.name.split(' ')[0]}`
-                  : navigation.find(item => item.id === view)?.label}
-              </h1>
-              <p>
-                {view === 'dashboard'
-                  ? 'A clear, real-time perspective on your team, projects, and deliverables.'
-                  : `${currentUser.department} · Management Workspace`}
-              </p>
-            </div>
-
-            {/* Quick Hero Creation Buttons */}
-            <div className="mp-hero-actions">
-              <button className="mp-btn-primary" onClick={() => setShowRegisterModal(true)}>
-                <UserPlus size={14} /> Register Employee
-              </button>
-              <button className="mp-btn-primary mp-btn-gold" onClick={() => setShowProjectModal(true)}>
-                <BriefcaseBusiness size={14} /> New Project
-              </button>
-              <button className="mp-btn-secondary" onClick={() => setShowTaskModal(true)}>
-                <CheckSquare size={14} /> Assign Task
-              </button>
-              <button className="mp-btn-secondary" onClick={exportManagerReport}>
-                <ArrowDownToLine size={14} /> Export CSV
-              </button>
-            </div>
-          </div>
-
-          {/* Animated View Container */}
+        {/* Main Content Area */}
+        <main className="v14-main">
           <AnimatePresence mode="wait">
             <motion.div
-              className="ep-content"
-              key={view}
-              initial={{ opacity: 0, y: reduced ? 0 : 5 }}
+              key={`${activePill}-${activeDock}`}
+              initial={{ opacity: 0, y: reduced ? 0 : 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: reduced ? 0 : 0.16 }}
+              transition={{ duration: reduced ? 0 : 0.18 }}
             >
-              <div className={view === 'dashboard' ? '' : 'at-live-desk ep-desk'}>
-                {renderViewContent()}
-              </div>
+              {renderMainContent()}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
 
       {/* Notifications Drawer */}
-      {inbox && (
+      {inboxOpen && (
         <>
-          <button className="ep-scrim ep-drawer-scrim" aria-label="Close notifications" onClick={() => setInbox(false)} />
+          <button className="mp-modal-backdrop" onClick={() => setInboxOpen(false)} />
           <section
             ref={dialogRef}
             className="at-drawer brand-notification-drawer"
@@ -1105,24 +1063,27 @@ export function ManagerWorkspace() {
             aria-label="Notifications"
           >
             <div className="at-drawer-head">
-              <span className="at-section-eyebrow">YOUR WORKSPACE</span>
-              <button className="at-icon-button" aria-label="Close notifications" onClick={() => setInbox(false)}>
+              <span className="at-section-eyebrow">WORKSPACE ALERTS</span>
+              <button className="at-icon-button" onClick={() => setInboxOpen(false)}>
                 <X size={20} />
               </button>
             </div>
             <h2>Notifications</h2>
             <NotificationInbox
               onOpenProfile={() => {
-                setInbox(false);
-                setProfile(true);
+                setInboxOpen(false);
+                setProfileOpen(true);
               }}
-              onNavigate={section => {
-                setInbox(false);
-                if (section === 'Requests') navigate('approvals');
-                else if (section === 'Reports') navigate('eod_reports');
-                else if (section === 'Broadcasts') navigate('broadcasts');
-                else if (section === 'Team chat' || section === 'People') navigate('team_chat');
-                else navigate('tasks');
+              onNavigate={sec => {
+                setInboxOpen(false);
+                if (sec === 'Requests') {
+                  setActivePill('Reports');
+                  setActiveDock('overview');
+                } else if (sec === 'Team chat' || sec === 'People') {
+                  setActiveDock('messages');
+                } else {
+                  setActiveDock('tasks');
+                }
               }}
             />
           </section>
@@ -1134,7 +1095,8 @@ export function ManagerWorkspace() {
         isOpen={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
         onSuccess={() => {
-          setView('employees');
+          setActivePill('Manage');
+          setActiveDock('people');
         }}
       />
 
@@ -1142,7 +1104,8 @@ export function ManagerWorkspace() {
         isOpen={showProjectModal}
         onClose={() => setShowProjectModal(false)}
         onSuccess={() => {
-          setView('projects');
+          setActivePill('Projects');
+          setActiveDock('overview');
         }}
       />
 
@@ -1150,17 +1113,17 @@ export function ManagerWorkspace() {
         isOpen={showTaskModal}
         onClose={() => setShowTaskModal(false)}
         onSuccess={() => {
-          setView('tasks');
+          setActiveDock('tasks');
         }}
       />
 
-      {/* User Profile & Password Modals */}
+      {/* Profile & Security Modals */}
       <div className="at-live-desk">
-        <PremiumProfileModal isOpen={profile} onClose={closeProfile} />
+        <PremiumProfileModal isOpen={profileOpen} onClose={closeProfile} />
         <ForcePasswordModal />
         <ExitClearanceModal
-          isOpen={exitClearance}
-          onClose={() => setExitClearance(false)}
+          isOpen={exitClearanceOpen}
+          onClose={() => setExitClearanceOpen(false)}
           onConfirmLogout={() => {
             updateUserStatus('offline');
             logout();
@@ -1168,7 +1131,7 @@ export function ManagerWorkspace() {
         />
       </div>
 
-      {/* Global Real-Time Floating Live Chat Widget */}
+      {/* Floating Chat Widget */}
       <div className="at-live-chat">
         <FloatingChatWidget />
       </div>
