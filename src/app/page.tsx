@@ -22,6 +22,7 @@ import { CompanySetupDesk } from '@/components/superadmin/CompanySetupDesk';
 import { BroadcastDesk } from '@/components/superadmin/BroadcastDesk';
 
 // Manager Components
+import { ManagerWorkspace } from '@/components/manager/ManagerWorkspace';
 import { ManagerDashboard } from '@/components/manager/ManagerDashboard';
 import { TaskAllocationDesk } from '@/components/manager/TaskAllocationDesk';
 import { TeamLiveMonitor } from '@/components/manager/TeamLiveMonitor';
@@ -85,6 +86,9 @@ function HRMSPortalContent() {
 
   if (currentUser.role === 'super_admin') return <SuperAdminWorkspace />;
   if (currentUser.role === 'employee') return <EmployeePortal />;
+  if (currentUser.role === 'manager' || currentUser.role === 'manager_hr' || currentUser.role === 'hr') {
+    return <ManagerWorkspace />;
+  }
 
   // Render the appropriate portal view
   const renderView = () => {

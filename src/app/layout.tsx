@@ -9,6 +9,7 @@ import "../components/common/role-workspace.css";
 import "../components/common/role-refinement.css";
 import "../components/common/clean-workspace.css";
 import "../components/employee/employee-portal.css";
+import "../components/manager/manager-portal.css";
 import "../components/auth/login.css";
 import "../components/common/workspace-button.css";
 import "../context/notifications.css";
