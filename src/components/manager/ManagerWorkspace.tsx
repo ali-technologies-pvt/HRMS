@@ -567,21 +567,21 @@ export function ManagerWorkspace() {
                   {openTasks.slice(0, 5).map(task => (
                     <tr key={task.id}>
                       <td>
-                        <strong className="font-semibold text-slate-800 dark:text-slate-200">{task.title}</strong>
+                        <strong className="font-bold text-slate-950 dark:text-white">{task.title}</strong>
                       </td>
                       <td>
-                        <span className="text-slate-500 text-xs">{task.projectName || 'General'}</span>
+                        <span className="text-slate-600 dark:text-slate-300 font-medium text-xs">{task.projectName || 'General'}</span>
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 text-[10px] font-bold flex items-center justify-center">
+                          <span className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white text-[10px] font-bold flex items-center justify-center">
                             {(task.assignedToName || 'U').charAt(0)}
                           </span>
-                          <span className="text-xs">{task.assignedToName || 'Unassigned'}</span>
+                          <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{task.assignedToName || 'Unassigned'}</span>
                         </div>
                       </td>
                       <td>
-                        <span className="text-xs text-slate-500">{task.deadline}</span>
+                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{task.deadline}</span>
                       </td>
                       <td>
                         <span
