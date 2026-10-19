@@ -294,17 +294,7 @@ export function ManagerWorkspace() {
 
     // 2. Tasks Board Dock Selection
     if (activeDock === 'tasks') {
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Sprint Kanban & Tasks Allocation</h2>
-            <button className="v14-pill-btn-dark" onClick={() => setShowTaskModal(true)}>
-              <Plus size={14} /> Assign Task
-            </button>
-          </div>
-          <TaskAllocationDesk />
-        </div>
-      );
+      return <TaskAllocationDesk />;
     }
 
     // 3. Live Telemetry Dock Selection
