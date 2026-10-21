@@ -124,6 +124,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'needs_review' | 'completed'>('all');
 
   // EOD Report modal state (for employees)
   const [showEODModal, setShowEODModal] = useState(false);
@@ -213,10 +214,14 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
     return tasks;
   }, [mode, tasks, currentUser.id, selectedEmployeeId, todayStr]);
 
-  // Apply search query and project filter
+  // Apply search query, project filter, and quick status filter
   const displayedTasks = useMemo(() => {
     return baseTasks.filter(t => {
       const matchesProject = selectedProjectId === 'all' || t.projectId === selectedProjectId;
+      const matchesStatus =
+        statusFilter === 'all' ||
+        t.status === statusFilter ||
+        (statusFilter === 'needs_review' && t.status === 'blocked');
       const query = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !query ||
@@ -225,9 +230,9 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
         (t.assignedToName && t.assignedToName.toLowerCase().includes(query)) ||
         (t.projectName && t.projectName.toLowerCase().includes(query));
 
-      return matchesProject && matchesSearch;
+      return matchesProject && matchesStatus && matchesSearch;
     });
-  }, [baseTasks, selectedProjectId, searchQuery]);
+  }, [baseTasks, selectedProjectId, statusFilter, searchQuery]);
 
   // 4 Columns configuration
   const COLUMNS: {
@@ -618,36 +623,40 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
       }));
   }, [baseTasks]);
 
+  const completedCount = useMemo(() => baseTasks.filter(t => t.status === 'completed').length, [baseTasks]);
+  const completionRate = useMemo(() => (baseTasks.length > 0 ? Math.round((completedCount / baseTasks.length) * 100) : 0), [baseTasks, completedCount]);
+
   return (
     <div className="space-y-6">
-      {/* Top Banner & Control Center (V14 Overview Glassy Alignment) */}
-      <div className="v14-greeting-row bg-white/70 dark:bg-[#0f172a]/60 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+      {/* 1. TOP BANNER & CONTROL CENTER (V14 LUXURY GLASSY BANNER) */}
+      <div className="v14-kanban-hero">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 bg-gradient-to-tr from-sky-500/20 to-cyan-400/20 text-sky-600 dark:text-cyan-300 rounded-xl border border-sky-400/30 shadow-sm">
-              <FolderKanban className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-gradient-to-r from-[#ea3822]/15 to-[#ff6a47]/15 text-[#ea3822] dark:text-[#ff6a47] border border-[#ea3822]/30 rounded-full text-[10px] font-extrabold uppercase tracking-widest inline-flex items-center gap-1.5 shadow-sm backdrop-blur-md">
+              <Sparkles className="w-3.5 h-3.5" />
+              {mode === 'manager' ? 'TEAM SPRINT HUB • COLLECTIVE ALLOCATION' : 'MY PERSONAL WORKSPACE'}
             </span>
-            <span className="text-[11px] font-bold tracking-wider uppercase text-sky-600 dark:text-cyan-400">
-              {mode === 'manager' ? 'Team Task Hub & Collective Allocation' : 'My Tasks'}
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              {displayedTasks.length} tasks shown
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mt-2">
-            <h1 className="text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-950 dark:text-white tracking-tight">
               {selectedProjectId === 'all'
                 ? (mode === 'employee' ? 'Your Task Board' : 'Sprint Kanban & Task Allocation')
                 : projects.find(p => p.id === selectedProjectId)?.name || 'Project Task Board'}
             </h1>
 
             {mode === 'employee' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 border border-sky-400/30 text-sky-700 dark:text-cyan-300 text-xs font-semibold rounded-full">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 border border-sky-400/30 text-sky-700 dark:text-cyan-300 text-xs font-bold rounded-full">
                 <Lock className="w-3 h-3" />
                 Assigned to you
               </span>
             )}
           </div>
 
-          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1.5 font-medium">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 font-medium max-w-2xl">
             {mode === 'manager'
               ? 'Collective task board: assign sprint tasks, track real-time deliverable velocity, and review submissions.'
               : 'Track personal deliverables, active work sessions, and submit completed tasks for review.'}
@@ -664,11 +673,11 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                 src={emp.avatarUrl}
                 alt={emp.name}
                 title={`${emp.name} (${emp.department})`}
-                className="w-9 h-9 rounded-full border-2 border-white dark:border-slate-900 object-cover shadow-sm ring-1 ring-black/5"
+                className="w-9 h-9 rounded-full border-2 border-white dark:border-[#0f172a] object-cover shadow-sm ring-1 ring-black/5"
               />
             ))}
             {eligibleEmployees.length > 4 && (
-              <div className="w-9 h-9 rounded-full border-2 border-white dark:border-slate-900 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold flex items-center justify-center shadow-sm">
+              <div className="w-9 h-9 rounded-full border-2 border-white dark:border-[#0f172a] bg-slate-100 dark:bg-slate-800 text-slate-950 dark:text-white text-xs font-bold flex items-center justify-center shadow-sm">
                 +{eligibleEmployees.length - 4}
               </div>
             )}
@@ -701,7 +710,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
               <button
                 type="button"
                 onClick={() => setShowFullModal(true)}
-                className="mp-btn-primary"
+                className="mp-btn-primary mp-btn-gold"
               >
                 <Plus className="w-4 h-4" />
                 <span>Assign Task</span>
@@ -724,7 +733,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
               <button
                 type="button"
                 onClick={() => setShowEODModal(true)}
-                className="mp-btn-primary"
+                className="mp-btn-primary mp-btn-gold"
               >
                 <FileCheck2 className="w-4 h-4" />
                 <span>1-Click Daily EOD</span>
@@ -734,15 +743,15 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
         </div>
       </div>
 
-      {/* Filter & Search Bar (Glassy Pill Design) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 p-3.5 bg-white/60 dark:bg-[#0f172a]/60 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-sm">
+      {/* 2. FILTER & SEARCH TOOLBAR (GLASSY PILL STRIP) */}
+      <div className="v14-kanban-toolbar">
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Project Selector */}
           <div className="relative">
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="appearance-none bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs font-semibold rounded-full pl-4 pr-8 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 cursor-pointer"
+              className="appearance-none bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs font-bold rounded-full pl-4 pr-8 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#ea3822]/30 cursor-pointer"
             >
               <option value="all" className="bg-white dark:bg-slate-900 text-slate-950 dark:text-white">
                 All Projects ({projects.length})
@@ -762,7 +771,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
               <select
                 value={selectedEmployeeId}
                 onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="appearance-none bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs font-semibold rounded-full pl-4 pr-8 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 cursor-pointer"
+                className="appearance-none bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs font-bold rounded-full pl-4 pr-8 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#ea3822]/30 cursor-pointer"
               >
                 <option value="all" className="bg-white dark:bg-slate-900 text-slate-950 dark:text-white">
                   All Team Members ({eligibleEmployees.length})
@@ -776,6 +785,54 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           )}
+
+          {/* Quick Status Filter Pills */}
+          <div className="hidden md:flex items-center gap-1.5 p-1 bg-slate-100/80 dark:bg-white/5 rounded-full border border-slate-200/60 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-full transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-white dark:bg-slate-800 text-slate-950 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              All ({baseTasks.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('in_progress')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-full transition-all ${
+                statusFilter === 'in_progress'
+                  ? 'bg-[#ea3822] text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              In Progress ({baseTasks.filter(t => t.status === 'in_progress').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('needs_review')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-full transition-all ${
+                statusFilter === 'needs_review'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              Review ({baseTasks.filter(t => t.status === 'needs_review' || t.status === 'blocked').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('completed')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-full transition-all ${
+                statusFilter === 'completed'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              Done ({baseTasks.filter(t => t.status === 'completed').length})
+            </button>
+          </div>
         </div>
 
         {/* Search input styled as V14 search pill */}
@@ -786,12 +843,15 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks, deliverables, assignees..."
-            className="w-full bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs rounded-full pl-9 pr-4 py-2 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            className="w-full bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white text-xs font-semibold rounded-full pl-9 pr-12 py-2 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ea3822]/30"
           />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 dark:text-slate-500 font-bold">
+            ⌘K
+          </span>
         </div>
       </div>
 
-      {/* Main Board Layout: 4 Columns + Right Sidebar */}
+      {/* 3. MAIN BOARD LAYOUT: 4 GLASS COLUMNS + RIGHT SIDEBAR */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         {/* Kanban Board (3 Columns span in grid) */}
         <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
@@ -799,29 +859,58 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
             const columnTasks = getTasksForColumn(col);
             const isInlineActive = inlineAddColumn === col.id;
 
+            const colAccentColor =
+              col.id === 'pending'
+                ? '#38bdf8'
+                : col.id === 'in_progress'
+                ? '#ea3822'
+                : col.id === 'needs_review'
+                ? '#a855f7'
+                : '#10b981';
+
+            const badgeBg =
+              col.id === 'pending'
+                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/70 dark:text-sky-300'
+                : col.id === 'in_progress'
+                ? 'bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300'
+                : col.id === 'needs_review'
+                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300'
+                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300';
+
             return (
               <div
                 key={col.id}
-                className="bg-white/50 dark:bg-[#0c1322]/60 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-3.5 flex flex-col space-y-3 min-h-[500px] shadow-sm hover:border-slate-300 dark:hover:border-white/20 transition-all"
+                style={{ '--col-accent': colAccentColor } as React.CSSProperties}
+                className="v14-kanban-column"
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/70 dark:border-white/10 px-1">
                   <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: colAccentColor }}
+                    />
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-950 dark:text-white">
                       {col.title}
                     </h3>
-                    <span className="w-5 h-5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-900 dark:text-white text-[11px] font-bold flex items-center justify-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${badgeBg}`}>
                       {columnTasks.length}
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    title="Column options"
-                    className="p-1 text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-all"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
+                  {mode !== 'employee' && (
+                    <button
+                      type="button"
+                      title="Add task to this column"
+                      onClick={() => {
+                        setInlineAddColumn(col.id);
+                        setInlineTitle('');
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Cards List */}
@@ -846,21 +935,33 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                         layout
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ y: -3, transition: { type: 'spring', stiffness: 450, damping: 25 } }}
+                        whileHover={{ y: -4, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }}
                         onClick={() => setSelectedTaskForModal(t)}
-                        className={`p-4 bg-white/85 dark:bg-[#131d2f]/80 backdrop-blur-xl rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-[0_12px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_12px_24px_rgba(0,0,0,0.35)] cursor-pointer select-none group ${
-                          isWorking
-                            ? 'border-sky-500 dark:border-cyan-400 ring-2 ring-sky-500/20 shadow-[0_0_20px_rgba(14,165,233,0.2)]'
-                            : 'border-slate-200/90 dark:border-white/10 hover:border-sky-400/50'
-                        }`}
+                        className={`v14-kanban-card group ${isWorking ? 'is-active-session' : ''}`}
                       >
-                        {/* Card Header: Category Capsule Pill & 3-Dots Menu */}
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <span
-                            className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
-                          >
-                            {t.category || 'Task'}
-                          </span>
+                        {/* Card Header: Category Capsule Pill & Priority & 3-Dots Menu */}
+                        <div className="flex items-center justify-between gap-1.5 mb-2.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                            >
+                              {t.category || 'Task'}
+                            </span>
+
+                            <span
+                              className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full ${
+                                t.priority === 'urgent'
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                  : t.priority === 'high'
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                  : t.priority === 'medium'
+                                  ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                  : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {t.priority}
+                            </span>
+                          </div>
 
                           <div className="relative" onClick={(e) => e.stopPropagation()}>
                             <button
@@ -963,27 +1064,27 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                         </div>
 
                         {/* Task Title with High Contrast Prominence */}
-                        <h4 className="text-sm font-bold text-slate-950 dark:text-white leading-snug tracking-tight mb-1 group-hover:text-sky-600 dark:group-hover:text-cyan-300 transition-colors">
+                        <h4 className="text-[13px] font-bold text-slate-950 dark:text-white leading-snug tracking-tight mb-1.5 group-hover:text-[#ea3822] dark:group-hover:text-[#ff6a47] transition-colors">
                           {t.title}
                         </h4>
 
                         {/* Project Name Snippet */}
-                        <div className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate mb-3 flex items-center gap-1.5">
-                          <FolderKanban className="w-3 h-3 text-sky-600 dark:text-cyan-400 shrink-0" />
+                        <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 truncate mb-3 flex items-center gap-1.5">
+                          <FolderKanban className="w-3.5 h-3.5 text-[#ea3822] shrink-0" />
                           <span>{t.projectName || 'General'}</span>
                         </div>
 
                         {/* Live Timer & Start Work button (For In Progress tasks) */}
                         {col.id === 'in_progress' && (
-                          <div className="p-2.5 bg-sky-50 dark:bg-cyan-950/30 border border-sky-200 dark:border-cyan-500/30 rounded-xl mb-3 flex items-center justify-between text-xs font-mono">
-                            <div className="flex items-center gap-1.5 text-sky-950 dark:text-cyan-200 font-bold text-xs">
+                          <div className="p-2.5 bg-slate-50/90 dark:bg-[#0c1424]/90 border border-slate-200/80 dark:border-white/10 rounded-xl mb-3 flex items-center justify-between text-xs font-mono backdrop-blur-sm shadow-sm">
+                            <div className="flex items-center gap-1.5 text-slate-950 dark:text-white font-bold text-xs">
                               <Clock
-                                className={`w-3.5 h-3.5 text-sky-600 dark:text-cyan-400 ${
+                                className={`w-3.5 h-3.5 text-[#ea3822] ${
                                   isWorking ? 'animate-spin' : ''
                                 }`}
                                 style={{ animationDuration: '4s' }}
                               />
-                              <span>{isWorking ? formatDuration(sessionSecs) : '00:00:00'}</span>
+                              <span className="tracking-wider">{isWorking ? formatDuration(sessionSecs) : '00:00:00'}</span>
                             </div>
 
                             <button
@@ -992,7 +1093,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                                 e.stopPropagation();
                                 toggleTaskTimer(t.id);
                               }}
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all shadow-sm ${
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all shadow-sm ${
                                 isWorking
                                   ? 'bg-amber-500 text-white hover:bg-amber-600'
                                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -1012,10 +1113,10 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                         )}
 
                         {/* Footer Metadata Row */}
-                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-white/10 text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-white/10 text-[11px] text-slate-600 dark:text-slate-300 font-semibold">
                           <div className="flex items-center gap-3">
                             <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
-                              <Flag className="w-3 h-3 text-slate-400" />
+                              <Calendar className="w-3 h-3 text-slate-400" />
                               <span>{t.deadline.replace('2026-', '')}</span>
                             </span>
 
@@ -1052,10 +1153,10 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="p-4 bg-white/95 dark:bg-[#162238]/95 backdrop-blur-2xl border-2 border-dashed border-sky-400/80 dark:border-cyan-400/70 rounded-2xl shadow-lg space-y-3"
+                      className="p-4 bg-white/95 dark:bg-[#162238]/95 backdrop-blur-2xl border-2 border-dashed border-[#ea3822]/80 dark:border-[#ea3822]/70 rounded-2xl shadow-lg space-y-3"
                     >
                       <div className="flex items-center justify-between text-xs font-bold text-slate-950 dark:text-white">
-                        <span>Create New Card</span>
+                        <span>Create New Deliverable</span>
                         <button
                           type="button"
                           onClick={() => setInlineAddColumn(null)}
@@ -1069,9 +1170,9 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                         rows={2}
                         value={inlineTitle}
                         onChange={(e) => setInlineTitle(e.target.value)}
-                        placeholder="What needs to be delivered?"
+                        placeholder="What deliverable needs to be created?"
                         autoFocus
-                        className="w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white p-2.5 text-xs rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                        className="w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white p-2.5 text-xs rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#ea3822]/30"
                       />
 
                       {/* Category Pill Picker */}
@@ -1085,7 +1186,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                               onClick={() => setInlineCategory(cat)}
                               className={`px-2.5 py-1 text-[10px] font-semibold rounded-full border transition-all ${
                                 inlineCategory === cat
-                                  ? 'bg-sky-500 text-white border-sky-600 shadow-sm'
+                                  ? 'bg-[#ea3822] text-white border-[#ea3822] shadow-sm'
                                   : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
                               }`}
                             >
@@ -1102,7 +1203,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                           <select
                             value={inlineAssigneeId}
                             onChange={(e) => setInlineAssigneeId(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white px-3 py-2 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                            className="w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-white/15 text-slate-950 dark:text-white px-3 py-2 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ea3822]/30"
                           >
                             {eligibleEmployees.map(emp => (
                               <option key={emp.id} value={emp.id} className="bg-white dark:bg-slate-900 text-slate-950 dark:text-white">
@@ -1116,7 +1217,7 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
                       <button
                         type="button"
                         onClick={() => handleInlineSubmit(col.id)}
-                        className="w-full py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                        className="w-full py-2 bg-gradient-to-r from-[#ea3822] to-[#ff6a47] text-white font-bold text-xs rounded-xl shadow-md transition-all hover:opacity-95"
                       >
                         Add Card
                       </button>
@@ -1143,18 +1244,36 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
           })}
         </div>
 
-        {/* Right Sidebar: Task Progress & Recent Activity (V14 Glass Card Aesthetics) */}
+        {/* 4. RIGHT SIDEBAR: SPRINT VELOCITY & LIVE ACTIVITY */}
         <div className="space-y-6">
-          {/* Task Progress Panel */}
-          <div className="bg-white/70 dark:bg-[#0f172a]/60 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 space-y-4 shadow-sm">
+          {/* Sprint Velocity & Progress Panel */}
+          <div className="v14-sidebar-panel">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200/70 dark:border-white/10">
               <h3 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-sky-600 dark:text-cyan-400" />
-                Task Progress
+                <TrendingUp className="w-4 h-4 text-[#ea3822]" />
+                Sprint Velocity & Progress
               </h3>
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                {baseTasks.filter(t => t.status === 'completed').length} / {baseTasks.length} Done
+              <span className="text-xs font-extrabold text-slate-950 dark:text-white">
+                {completedCount} / {baseTasks.length} Done
               </span>
+            </div>
+
+            {/* Overall Velocity Progress Meter */}
+            <div className="p-3.5 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10 flex items-center justify-between">
+              <div>
+                <span className="text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                  {completionRate}%
+                </span>
+                <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                  Sprint Completion Rate
+                </span>
+              </div>
+              <div className="w-12 h-12 rounded-full border-4 border-slate-200 dark:border-slate-800 flex items-center justify-center relative">
+                <div
+                  className="w-12 h-12 rounded-full border-4 border-[#ea3822] border-t-transparent absolute -top-1 -left-1 rotate-45"
+                />
+                <Sparkles size={16} className="text-[#ea3822]" />
+              </div>
             </div>
 
             <div className="space-y-3.5">
@@ -1178,30 +1297,41 @@ export function KanbanTaskBoard({ mode }: KanbanTaskBoardProps) {
           </div>
 
           {/* Recent Activity Stream Panel */}
-          <div className="bg-white/70 dark:bg-[#0f172a]/60 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 space-y-4 shadow-sm">
+          <div className="v14-sidebar-panel">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200/70 dark:border-white/10">
               <h3 className="text-xs font-bold text-slate-950 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <History className="w-4 h-4 text-sky-600 dark:text-cyan-400" />
-                Recent Activity
+                <History className="w-4 h-4 text-[#ea3822]" />
+                Recent Sprint Activity
               </h3>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
 
-            <div className="space-y-3.5 overflow-y-auto max-h-[400px] pr-0.5">
-              {(activities.length?activities:baseTasks.slice(0,4).map(task=>({id:task.id,userName:users.find(u=>u.id===task.assignedById)?.name||'Your manager',userAvatar:'',action:'assigned task',taskTitle:task.title,time:new Date(task.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}),color:'cyan'}))).map((act) => {
+            <div className="space-y-3.5 overflow-y-auto max-h-[380px] pr-0.5">
+              {(activities.length
+                ? activities
+                : baseTasks.slice(0, 4).map(task => ({
+                    id: task.id,
+                    userName: users.find(u => u.id === task.assignedById)?.name || 'Sarah Jenkins',
+                    userAvatar: '',
+                    action: 'assigned deliverable',
+                    taskTitle: task.title,
+                    time: task.createdAt ? new Date(task.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Recent',
+                    color: 'cyan' as const
+                  }))
+              ).map((act) => {
                 const getDotColor = () => {
                   switch (act.color) {
-                    case 'emerald': return 'bg-emerald-500';
-                    case 'cyan': return 'bg-sky-500';
-                    case 'violet': return 'bg-violet-500';
-                    case 'amber': return 'bg-amber-500';
-                    default: return 'bg-slate-400';
+                    case 'emerald': return 'bg-emerald-500 ring-emerald-500/20';
+                    case 'cyan': return 'bg-[#ea3822] ring-[#ea3822]/20';
+                    case 'violet': return 'bg-purple-500 ring-purple-500/20';
+                    case 'amber': return 'bg-amber-500 ring-amber-500/20';
+                    default: return 'bg-slate-400 ring-slate-400/20';
                   }
                 };
 
                 return (
                   <div key={act.id} className="flex items-start gap-3 text-xs">
-                    <div className={`w-2.5 h-2.5 rounded-full ${getDotColor()} mt-1 shrink-0 ring-4 ring-slate-100 dark:ring-slate-800`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${getDotColor()} mt-1 shrink-0 ring-4`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-800 dark:text-slate-200 leading-snug">
                         <span className="font-bold text-slate-950 dark:text-white">{act.userName}</span>{' '}

@@ -1421,3 +1421,150 @@
   transform: translateX(2px);
 }
 
+/* =========================================================
+   V14 PREMIUM KANBAN TASK BOARD
+   ========================================================= */
+.v14-kanban-hero {
+  background: var(--v14-card-bg);
+  backdrop-filter: var(--v14-glass-blur);
+  -webkit-backdrop-filter: var(--v14-glass-blur);
+  border: 1px solid var(--v14-border);
+  border-radius: 24px;
+  padding: 24px 28px;
+  box-shadow: var(--v14-glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@media (min-width: 1024px) {
+  .v14-kanban-hero {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.v14-kanban-toolbar {
+  background: var(--v14-card-bg);
+  backdrop-filter: var(--v14-glass-blur);
+  -webkit-backdrop-filter: var(--v14-glass-blur);
+  border: 1px solid var(--v14-border);
+  border-radius: 20px;
+  padding: 12px 18px;
+  box-shadow: var(--v14-glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .v14-kanban-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.v14-kanban-column {
+  background: var(--v14-card-bg);
+  backdrop-filter: var(--v14-glass-blur);
+  -webkit-backdrop-filter: var(--v14-glass-blur);
+  border: 1px solid var(--v14-border);
+  border-radius: 22px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 580px;
+  box-shadow: var(--v14-glass-shadow);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.v14-kanban-column::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--col-accent, var(--v14-coral-start));
+  opacity: 0.85;
+}
+
+.v14-dashboard[data-theme='dark'] .v14-kanban-column {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.v14-dashboard[data-theme='light'] .v14-kanban-column {
+  border-color: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 6px 24px -2px rgba(15, 23, 42, 0.05);
+}
+
+.v14-kanban-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02);
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  position: relative;
+}
+
+.v14-dashboard[data-theme='dark'] .v14-kanban-card {
+  background: rgba(18, 26, 44, 0.85);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.v14-kanban-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.12);
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.v14-dashboard[data-theme='dark'] .v14-kanban-card:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 20px 42px -8px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.v14-kanban-card.is-active-session {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 24px rgba(2, 132, 199, 0.25), 0 8px 24px -4px rgba(2, 132, 199, 0.18) !important;
+}
+
+.v14-dashboard[data-theme='dark'] .v14-kanban-card.is-active-session {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.v14-sidebar-panel {
+  background: var(--v14-card-bg);
+  backdrop-filter: var(--v14-glass-blur);
+  -webkit-backdrop-filter: var(--v14-glass-blur);
+  border: 1px solid var(--v14-border);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: var(--v14-glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v14-dashboard[data-theme='dark'] .v14-sidebar-panel {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.v14-dashboard[data-theme='light'] .v14-sidebar-panel {
+  border-color: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 6px 24px -2px rgba(15, 23, 42, 0.05);
+}
+
+
