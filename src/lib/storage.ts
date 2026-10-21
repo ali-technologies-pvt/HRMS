@@ -23,22 +23,22 @@ import {
 } from './initialData';
 
 export const STORAGE_KEYS = {
-  USERS: 'quickslogx_users_v6',
-  PROJECTS: 'quickslogx_projects_v6',
-  TASKS: 'quickslogx_tasks_v6',
-  REPORTS: 'quickslogx_reports_v6',
-  REQUESTS: 'quickslogx_requests_v6',
-  ATTENDANCE: 'quickslogx_attendance_v6',
-  ANNOUNCEMENTS: 'quickslogx_announcements_v6',
-  PAYSLIPS: 'quickslogx_payslips_v6',
-  POLICY: 'quickslogx_policy_v6',
-  NOTIFICATIONS: 'quickslogx_notifications_v6',
-  ACTIVE_USER_ID: 'quickslogx_active_user_id_v6',
-  IS_AUTHENTICATED: 'quickslogx_is_authenticated_v6',
-  CHAT_GROUPS: 'quickslogx_chat_groups_v6',
-  CHAT_MESSAGES: 'quickslogx_chat_messages_v6',
-  CHAT_DELETED_IDS: 'quickslogx_chat_deleted_ids_v6',
-  CHAT_READ_RECEIPTS: 'quickslogx_chat_read_receipts_v6',
+  USERS: 'quickslogx_users_v7',
+  PROJECTS: 'quickslogx_projects_v7',
+  TASKS: 'quickslogx_tasks_v7',
+  REPORTS: 'quickslogx_reports_v7',
+  REQUESTS: 'quickslogx_requests_v7',
+  ATTENDANCE: 'quickslogx_attendance_v7',
+  ANNOUNCEMENTS: 'quickslogx_announcements_v7',
+  PAYSLIPS: 'quickslogx_payslips_v7',
+  POLICY: 'quickslogx_policy_v7',
+  NOTIFICATIONS: 'quickslogx_notifications_v7',
+  ACTIVE_USER_ID: 'quickslogx_active_user_id_v7',
+  IS_AUTHENTICATED: 'quickslogx_is_authenticated_v7',
+  CHAT_GROUPS: 'quickslogx_chat_groups_v7',
+  CHAT_MESSAGES: 'quickslogx_chat_messages_v7',
+  CHAT_DELETED_IDS: 'quickslogx_chat_deleted_ids_v7',
+  CHAT_READ_RECEIPTS: 'quickslogx_chat_read_receipts_v7',
 };
 
 // Safe JSON parse from localStorage with fallback

@@ -1327,3 +1327,97 @@
   background: var(--v14-soft, #f0f4fa);
   transform: translateY(-1px);
 }
+
+/* =========================================================
+   DYNAMIC INTERACTIVE GRAPHS & TELEMETRY
+   ========================================================= */
+.v14-graph-card {
+  background: var(--v14-card-bg);
+  backdrop-filter: var(--v14-glass-blur);
+  -webkit-backdrop-filter: var(--v14-glass-blur);
+  border: 1px solid var(--v14-border);
+  border-radius: 20px;
+  padding: 22px 24px;
+  box-shadow: var(--v14-glass-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+.v14-graph-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.14);
+}
+
+.v14-dashboard[data-theme='dark'] .v14-graph-card {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.v14-dashboard[data-theme='dark'] .v14-graph-card:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 22px 48px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.v14-dashboard[data-theme='light'] .v14-graph-card {
+  border-color: rgba(226, 232, 240, 0.95);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+
+/* 7-day SVG chart */
+.v14-svg-chart {
+  width: 100%;
+  height: 180px;
+  overflow: visible;
+}
+
+.v14-chart-dot {
+  transition: r 0.2s ease, fill 0.2s ease;
+  cursor: pointer;
+}
+
+.v14-chart-dot:hover {
+  r: 6;
+}
+
+/* Circular Capacity Gauge */
+.v14-gauge-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v14-gauge-circle-bg {
+  fill: none;
+  stroke: var(--v14-soft);
+  stroke-width: 10;
+}
+
+.v14-gauge-circle-fill {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 10;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Telemetry list */
+.v14-telemetry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--v14-soft);
+  border: 1px solid var(--v14-border);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.v14-telemetry-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
+}
+

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { EmployeePortal } from '@/components/employee/EmployeePortal';
 import { SuperAdminWorkspace } from '@/components/superadmin/SuperAdminWorkspace';
 import { RoleWorkspaceShell } from '@/components/common/RoleWorkspaceShell';
@@ -13,7 +14,6 @@ import { AmbientBackground } from '@/components/common/AmbientBackground';
 import { Topbar } from '@/components/layout/Topbar';
 import { PortalView } from '@/components/layout/Sidebar';
 import { ForcePasswordModal } from '@/components/common/ForcePasswordModal';
-
 
 // Super Admin Components
 import { LiveActivityTracker } from '@/components/superadmin/LiveActivityTracker';
@@ -84,16 +84,52 @@ function HRMSPortalContent() {
     return <LoginPage onTransitionStart={() => setLoginTransition(true)} onTransitionEnd={() => setLoginTransition(false)} />;
   }
 
-  if (currentUser.role === 'super_admin') return <SuperAdminWorkspace />;
-  if (currentUser.role === 'employee') return <EmployeePortal />;
-  if (currentUser.role === 'manager' || currentUser.role === 'manager_hr' || currentUser.role === 'hr') {
-    return <ManagerWorkspace />;
+  // Smooth, luxurious entrance animation container after authentication
+  if (currentUser.role === 'super_admin') {
+    return (
+      <motion.div
+        key="super_admin"
+        initial={{ opacity: 0, scale: 0.985, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full h-full min-h-screen"
+      >
+        <SuperAdminWorkspace />
+      </motion.div>
+    );
   }
 
-  // Render the appropriate portal view
+  if (currentUser.role === 'employee') {
+    return (
+      <motion.div
+        key="employee"
+        initial={{ opacity: 0, scale: 0.985, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full h-full min-h-screen"
+      >
+        <EmployeePortal />
+      </motion.div>
+    );
+  }
+
+  if (currentUser.role === 'manager' || currentUser.role === 'manager_hr' || currentUser.role === 'hr') {
+    return (
+      <motion.div
+        key="manager"
+        initial={{ opacity: 0, scale: 0.985, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full h-full min-h-screen"
+      >
+        <ManagerWorkspace />
+      </motion.div>
+    );
+  }
+
+  // Render the appropriate portal view fallback
   const renderView = () => {
     switch (currentView) {
-      // Super Admin Views
       case 'admin_overview':
         return <LiveActivityTracker />;
       case 'admin_onboarding':
@@ -102,8 +138,6 @@ function HRMSPortalContent() {
         return <CompanySetupDesk />;
       case 'admin_broadcasts':
         return <BroadcastDesk />;
-
-      // Manager Views
       case 'manager_dashboard':
         return unifiedTab === 'hr' ? <AttendanceDesk compactHeader /> : <ManagerDashboard />;
       case 'manager_tasks':
@@ -114,8 +148,6 @@ function HRMSPortalContent() {
         return <EODReportsDesk />;
       case 'manager_approvals':
         return <RequestsApprovalDesk />;
-
-      // HR Views
       case 'hr_attendance':
         return <AttendanceDesk compactHeader />;
       case 'hr_leave_management':
@@ -124,8 +156,6 @@ function HRMSPortalContent() {
         return <PayrollDesk />;
       case 'hr_announcements':
         return <BroadcastDesk />;
-
-      // Employee Views
       case 'emp_dashboard':
         return <EmployeeDashboard onNavigate={setCurrentView} />;
       case 'emp_tasks':
@@ -138,28 +168,35 @@ function HRMSPortalContent() {
         return <PayslipViewer />;
       case 'emp_noticeboard':
         return <EmployeeNoticeboard />;
-
-      // Universal Team Chat
       case 'team_chat':
         return <ChatDesk />;
-
       default:
         return <LiveActivityTracker />;
     }
   };
 
   return (
-    <RoleWorkspaceShell view={currentView} onNavigate={(view)=>{setCurrentView(view);setShowOperations(false);}} workspace={unifiedTab} onWorkspace={setUnifiedTab}>
-      <div className="studio-content">{isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={(view)=>{setCurrentView(view);if(view==='emp_dashboard')setShowOperations(true);}} />}{isDashboard && <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>{showOperations ? 'Close operations desk' : 'Open operations desk'}<span>{showOperations ? '−' : '+'}</span></button>}{(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}</div>
-      {/* First-Login Mandatory Change Password Modal */}
-      <ForcePasswordModal />
-
-      {/* First-Login Daily Attendance Prompt Popup */}
-
-
-      {/* Global Real-Time Floating Live Chat Widget */}
-      <div className="at-live-chat"><FloatingChatWidget /></div>
-    </RoleWorkspaceShell>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.985, y: 16 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full h-full min-h-screen"
+    >
+      <RoleWorkspaceShell view={currentView} onNavigate={(view) => { setCurrentView(view); setShowOperations(false); }} workspace={unifiedTab} onWorkspace={setUnifiedTab}>
+        <div className="studio-content">
+          {isDashboard && <WorkspaceOverview view={currentView} workspace={unifiedTab} onNavigate={(view) => { setCurrentView(view); if (view === 'emp_dashboard') setShowOperations(true); }} />}
+          {isDashboard && (
+            <button className="studio-operations-toggle" type="button" aria-expanded={showOperations} onClick={() => setShowOperations(!showOperations)}>
+              {showOperations ? 'Close operations desk' : 'Open operations desk'}
+              <span>{showOperations ? '−' : '+'}</span>
+            </button>
+          )}
+          {(!isDashboard || showOperations) && <div className="at-live-desk studio-operations">{renderView()}</div>}
+        </div>
+        <ForcePasswordModal />
+        <div className="at-live-chat"><FloatingChatWidget /></div>
+      </RoleWorkspaceShell>
+    </motion.div>
   );
 }
 
